@@ -5,6 +5,8 @@ It is possible to recycle RS41-SGP sondes for amateur radio use without any elec
 
 Released under GPL v2.
 
+**Check out Mikael's [RS41ng](https://github.com/mikaelnousiainen/RS41ng) repository for a much cleaner and well maintained RS41 firmware that supports the Horus 4FSK mode!**
+
 Original Repository: https://github.com/Qyon/STM32_RTTY, though this fork is based on [DF8OE's version](https://github.com/df8oe/RS41HUP).
 
 Modifications by Mark Jessop <vk5qi@rfhead.net> include:
