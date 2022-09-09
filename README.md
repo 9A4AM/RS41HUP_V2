@@ -1,6 +1,8 @@
 # RS41HUP (Ham Use Project) - Project Horus Fork
 Firmware for RS41 for HAM use.
 
+**IMPORTANT - I no longer maintain this repository. Please use [RS41ng](https://github.com/mikaelnousiainen/RS41ng) instead. I will also no longer be assigning Horus Binary v1 Payload IDs, please use the Horus Binary v2 mode instead.**
+
 It is possible to recycle RS41-SGP sondes for amateur radio use without any electrical changes! You just have to build a new firmware (this one) and apply it via a cheap programmer, the "ST-Linkv2" (or alternatives). The modified sonde can now transmit on a user-defined frequency in the 70cm band, with Habhub-compatible RTTY and (better performing) 4FSK telemetry!
 
 Released under GPL v2.
