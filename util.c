@@ -48,7 +48,7 @@ void print_hex(char *data, uint8_t length, char *tmp) // prints 8-bit data in he
    else tmp[j] = first;
    j++;
  }
- tmp[length*2] = '\n';
- tmp[length*2+1] = 0;
+ //tmp[length*2] = '\n';
+ //tmp[length*2+1] = 0;
  // Serial.println(tmp);
 }

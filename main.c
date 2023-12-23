@@ -25,11 +25,12 @@
 #include "mfsk.h"
 #include "horus_l2.h"
 #include "morse.h"
+#include "cmsis/core_cm3.h"
 
 // If enabled, print out binary packets as hex before and after coding.
 //#define MFSKDEBUG 1
 
-// IO Pins Definitions. The state of these pins are initilised in init.c
+// IO Pins Definitions. The state of these pins are initialized in init.c
 #define GREEN  GPIO_Pin_7 // Inverted
 #define RED  GPIO_Pin_8 // Non-Inverted (?)
 
@@ -41,6 +42,8 @@
 #define FSK_2 3
 
 volatile int current_mode = STARTUP;
+struct TBinaryPacketV1 BinaryPacket1;
+struct TBinaryPacketV2 BinaryPacket2;
 
 // Telemetry Data to Transmit - used in RTTY & MFSK packet generation functions.
 unsigned int send_count;        //frame counter
@@ -51,8 +54,8 @@ GPSEntry gpsData;
 char callsign[15] = {CALLSIGN};
 char status[2] = {'N'};
 uint16_t CRC_rtty = 0x12ab;  //checksum (dummy initial value)
-char buf_rtty[200];
-char buf_mfsk[200];
+char buf_rtty[300];
+char buf_mfsk[300];
 
 __IO uint16_t ADCVal[2];
 
@@ -90,29 +93,61 @@ volatile unsigned int tx_pip = TX_PIP / (1000/BAUD_RATE);
 // Note that we need to pack this to 1-byte alignment, hence the #pragma flags below
 // Refer: https://gcc.gnu.org/onlinedocs/gcc-4.4.4/gcc/Structure_002dPacking-Pragmas.html
 #pragma pack(push,1) 
-struct TBinaryPacket
+struct TBinaryPacketV1
 {
-uint8_t   PayloadID;
-uint16_t  Counter;
-uint8_t   Hours;
-uint8_t   Minutes;
-uint8_t   Seconds;
-float   Latitude;
-float   Longitude;
-uint16_t    Altitude;
-uint8_t   Speed; // Speed in Knots (1-255 knots)
-uint8_t   Sats;
-int8_t   Temp; // Si4032 temperature, as a signed value (-128 to +128, though sensor limited to -64 to +64 deg C)
-uint8_t   BattVoltage; // 0 = 0v, 255 = 5.0V, linear steps in-between.
-uint16_t Checksum; // CRC16-CCITT Checksum.
-};  //  __attribute__ ((packed)); // Doesn't work?
+	uint8_t   PayloadID;
+	uint16_t  Counter;
+	uint8_t   Hours;
+	uint8_t   Minutes;
+	uint8_t   Seconds;
+	float     Latitude;
+	float     Longitude;
+	uint16_t  Altitude;
+	uint8_t   Speed; // Speed in Knots (1-255 knots)
+	uint8_t   Sats;
+	int8_t    Temp; // Si4032 temperature, as a signed value (-128 to +128, though sensor limited to -64 to +64 deg C)
+	uint8_t   BattVoltage; // 0 = 0v, 255 = 5.0V, linear steps in-between.
+	uint16_t  Checksum; // CRC16-CCITT Checksum.
+};
 #pragma pack(pop)
 
+#pragma pack(push,1)
+struct TBinaryPacketV2
+{
+	uint16_t  PayloadID;
+	uint16_t  Counter;
+	uint8_t   Hours;
+	uint8_t   Minutes;
+	uint8_t   Seconds;
+	float     Latitude;
+	float     Longitude;
+	uint16_t  Altitude;
+	uint8_t   Speed; // Speed in Knots (1-255 knots)
+	uint8_t   Sats;
+	int8_t    Temp; // Si4032 temperature, as a signed value (-128 to +128, though sensor limited to -64 to +64 deg C)
+	uint8_t   BattVoltage; // 0 = 0v, 255 = 5.0V, linear steps in-between.
+	//... extra payload infos 9 bytes
+	int16_t   dummy1;       // Interpreted as Ascent rate divided by 100 for the Payload ID: 4FSKTEST-V2
+	int16_t   dummy2;       // External temperature divided by 10 for the Payload ID: 4FSKTEST-V2
+	uint8_t   dummy3;       // External humidity for the Payload ID: 4FSKTEST-V2
+	uint16_t  dummy4;       // External pressure divided by 10 for the Payload ID:  4FSKTEST-V2
+	uint16_t  unused;       // 2 bytes which are not interpreted
+	uint16_t  Checksum; // CRC16-CCITT Checksum.
+};
+#pragma pack(pop)
 
+uint8_t NOGPS_counter;
 // Function Definitions
 void collect_telemetry_data();
 void send_rtty_packet();
-void send_mfsk_packet();
+#ifdef HORUS_V1
+  void send_mfsk_packetV1();
+#endif
+#ifdef HORUS_V2
+  void send_mfsk_packetV2();
+#endif
+
+// Forward declaration
 void send_morse_ident();
 uint16_t gps_CRC16_checksum (char *string);
 
@@ -386,14 +421,21 @@ int main(void) {
         } else if (current_mode == RTTY){
           // We've just transmitted a RTTY packet, now configure for 4FSK.
           current_mode = MFSK;
-          #if defined(MFSK_4_ENABLED) || defined(MFSK_16_ENABLED)
+          #if defined(MFSK_4_ENABLED)
+            if (led_enabled) GPIO_SetBits(GPIOB, RED);
             radio_enable_tx();
-            send_mfsk_packet();
+			#ifdef HORUS_V1
+               send_mfsk_packetV1();
+			#endif
+			#ifdef HORUS_V2
+			   send_mfsk_packetV2();
+			#endif
           #endif
         } else {
           // We've finished the 4FSK transmission, grab new data.
           current_mode = STARTUP;
           radio_disable_tx();
+          if (led_enabled) GPIO_ResetBits(GPIOB, RED);
 
 
           #ifdef MORSE_IDENT
@@ -480,6 +522,7 @@ void collect_telemetry_data() {
   ublox_get_last_data(&gpsData);
 
   if (gpsData.gpsFixOK == 1) {
+	  NOGPS_counter = 0;
       // If we have a good fix, we can enter power-saving mode
       #ifdef UBLOX_POWERSAVE
         if ((gpsData.sats_raw >= 6) && (entered_psm == 0)){
@@ -496,12 +539,17 @@ void collect_telemetry_data() {
       }
   } else {
       // No GPS fix.
+	#ifdef NOGPS_RESET_AFTER_TXCOUNT
+	  NOGPS_counter++;
+	  if(NOGPS_counter > NOGPS_RESET_AFTER_TXCOUNT) NVIC_SystemReset();
+	#endif
       flaga &= ~0x80;
       led_enabled = 1; // Enable LEDs when there is no GPS fix (i.e. during startup)
 
       // Null out lat / lon data to avoid spamming invalid positions all over the map.
       gpsData.lat_raw = 0;
       gpsData.lon_raw = 0;
+      gpsData.alt_raw = 0;
   }
 }
 
@@ -529,7 +577,7 @@ void send_rtty_packet() {
  
   // Produce a RTTY Sentence (Compatible with the existing HORUS RTTY payloads)
   
-  n = sprintf(buf_rtty, "\n\n\n\n$$$$$%s,%d,%02u:%02u:%02u,%s%d.%04"PRId32",%s%d.%04" PRId32 ",%"PRId32",%d,%d,%d,%d",
+  n = sprintf(buf_rtty,"\n\n\n\n$$$$$%s,%d,%02u:%02u:%02u,%s%d.%04"PRId32",%s%d.%04" PRId32 ",%"PRId32",%d,%d,%d,%d",
         callsign,
         send_count,
         gpsData.hours, gpsData.minutes, gpsData.seconds,
@@ -556,12 +604,14 @@ void send_rtty_packet() {
   // From here the timer interrupt handles things.
 }
 
+//------------------ HORUS V1 --------------------------------------
+#ifdef HORUS_V1
 
-void send_mfsk_packet(){
+void send_mfsk_packetV1(){
   // Generate a MFSK Binary Packet
   //packet_length = mfsk_test_bits(buf_mfsk);
 
-  // Sanitise and convert some of the data.
+  // Sanitize and convert some of the data.
   if(gpsData.alt_raw < 0){
     gpsData.alt_raw = 0;
   }
@@ -571,16 +621,16 @@ void send_mfsk_packet(){
   uint8_t volts_scaled = (uint8_t)(255*(float)voltage/500.0);
 
   // Assemble a binary packet
-  struct TBinaryPacket BinaryPacket;
-  BinaryPacket.PayloadID = BINARY_PAYLOAD_ID%256;
-  BinaryPacket.Counter = send_count;
-  BinaryPacket.Hours = gpsData.hours;
-  BinaryPacket.Minutes = gpsData.minutes;
-  BinaryPacket.Seconds = gpsData.seconds;
-  BinaryPacket.Latitude = float_lat;
-  BinaryPacket.Longitude = float_lon;
-  BinaryPacket.Altitude = (uint16_t)(gpsData.alt_raw/1000);
-  BinaryPacket.Speed = (uint8_t)((float)gpsData.speed_raw*0.036); // Using NAV-VELNED gSpeed, which is in cm/s. Convert to kph.
+  // Global defined: struct TBinaryPacketV1 BinaryPacket1;
+  BinaryPacket1.PayloadID = BINARY_PAYLOAD_ID%256;
+  BinaryPacket1.Counter = send_count;
+  BinaryPacket1.Hours = gpsData.hours;
+  BinaryPacket1.Minutes = gpsData.minutes;
+  BinaryPacket1.Seconds = gpsData.seconds;
+  BinaryPacket1.Latitude = float_lat;
+  BinaryPacket1.Longitude = float_lon;
+  BinaryPacket1.Altitude = (uint16_t)(gpsData.alt_raw/1000);
+  BinaryPacket1.Speed = (uint8_t)((float)gpsData.speed_raw*0.036); // Using NAV-VELNED gSpeed, which is in cm/s. Convert to kph.
 
   // Temporary pDOP info, to determine suitable pDOP limits.
   // float pDop = (float)gpsData.pDOP/10.0;
@@ -588,29 +638,33 @@ void send_mfsk_packet(){
   //  pDop = 255.0;
   // }
   // BinaryPacket.Speed = (uint8_t)pDop;
-  BinaryPacket.BattVoltage = volts_scaled;
-  BinaryPacket.Sats = gpsData.sats_raw;
-  BinaryPacket.Temp = si4032_temperature;
+  BinaryPacket1.BattVoltage = volts_scaled;
+  BinaryPacket1.Sats = gpsData.sats_raw;
+  BinaryPacket1.Temp = si4032_temperature;
 
   // Add onto the sats_raw value to indicate if the GPS is in regular tracking (+100)
   // or power optimized tracker (+200) modes.
   if(gpsData.psmState == 1){
-    BinaryPacket.Sats += 100;
+    BinaryPacket1.Sats += 100;
   } else if(gpsData.psmState == 2){
-    BinaryPacket.Sats += 200;
+    BinaryPacket1.Sats += 200;
   }
 
-  BinaryPacket.Checksum = (uint16_t)array_CRC16_checksum((char*)&BinaryPacket,sizeof(BinaryPacket)-2);
+  BinaryPacket1.Checksum = (uint16_t)array_CRC16_checksum((char*)&BinaryPacket1,sizeof(BinaryPacket1)-2);
 
-  #ifdef MFSKDEBUG
+#ifdef MFSKDEBUG
   // Write BinaryPacket into the RTTY transmit buffer as hex
-  memcpy(buf_mfsk,&BinaryPacket,sizeof(struct TBinaryPacket));
+  memcpy(buf_mfsk,&BinaryPacket1,sizeof(struct TBinaryPacketV1));
   sprintf(buf_rtty,"$$$$");
-  print_hex(buf_mfsk, sizeof(struct TBinaryPacket), buf_rtty+4);
+  print_hex(buf_mfsk, 40, buf_rtty+4);
+  // sample: $$$$0001000000000000000000000000000000001c02*309D (-12.2 dB SNR)
+  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
+  sprintf(buf_rtty + 4 + 40, "*%04X\n", CRC_rtty & 0xffff);
 
   //Configure for transmit
   tx_buffer = buf_rtty;
   // Enable the radio, and set the tx_on flag to 1.
+  // RTTY SHIFT 810 Hz
   start_bits = RTTY_PRE_START_BITS;
   radio_enable_tx();
   current_mode = RTTY;
@@ -621,33 +675,35 @@ void send_mfsk_packet(){
     NVIC_SystemLPConfig(NVIC_LP_SEVONPEND, DISABLE);
     __WFI();
   }
+  _delay_ms(1000);
   current_mode = MFSK;
-  #endif
+#endif
 
-
-  
   #ifdef CONTINUOUS_MODE
     // Write Preamble characters into mfsk buffer.
     sprintf(buf_mfsk, "\x1b\x1b\x1b\x1b");
     // Encode the packet, and write into the mfsk buffer.
-    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+4,(unsigned char*)&BinaryPacket,sizeof(BinaryPacket));
+    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+4,(unsigned char*)&BinaryPacket1,sizeof(BinaryPacket1));
   #else
     // Double length preamble to help the decoder lock-on after a quiet period.
     // Write Preamble characters into mfsk buffer.
     sprintf(buf_mfsk, "\x1b\x1b\x1b\x1b\x1b\x1b\x1b\x1b");
     // Encode the packet, and write into the mfsk buffer.
-    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+8,(unsigned char*)&BinaryPacket,sizeof(BinaryPacket));
+    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+8,(unsigned char*)&BinaryPacket1,sizeof(BinaryPacket1));
   #endif
 
-  #ifdef MFSKDEBUG
+#ifdef MFSKDEBUG_
   // Write the coded packet into the RTTY transmit buffer as hex
   sprintf(buf_rtty,"$$$$");
-  print_hex(buf_mfsk, coded_len+4, buf_rtty+4);
-
+  print_hex(buf_mfsk+8, coded_len, buf_rtty+4);
+  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
+  sprintf(buf_rtty + 4 + coded_len, "_%d*%04X\n", coded_len, CRC_rtty & 0xffff);
+  // $$$1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b2424c863122d041dc5c99b12ffc7c_45*F4DB (-12.0 dB SNR)
   //Configure for transmit
   tx_buffer = buf_rtty;
   // Enable the radio, and set the tx_on flag to 1.
   start_bits = RTTY_PRE_START_BITS;
+  // RTTY SHIFT 810 Hz
   radio_enable_tx();
   current_mode = RTTY;
   tx_on = 1;
@@ -679,7 +735,147 @@ void send_mfsk_packet(){
   radio_enable_tx();
   tx_on = 1;
 }
+#endif
 
+#ifdef HORUS_V2
+//================== HORUS V2 =================================
+void send_mfsk_packetV2(){
+  // Generate a MFSK Binary Packet
+
+  // Sanitize and convert some of the data.
+  if(gpsData.alt_raw < 0){
+    gpsData.alt_raw = 0;
+  }
+  float float_lat = (float)gpsData.lat_raw / 10000000.0;
+  float float_lon = (float)gpsData.lon_raw / 10000000.0;
+
+  uint8_t volts_scaled = (uint8_t)(255*(float)voltage/500.0);
+
+  // Assemble a binary packet
+  struct TBinaryPacketV2 BinaryPacket2;
+  BinaryPacket2.PayloadID = BINARY_PAYLOAD_ID;
+  BinaryPacket2.Counter = send_count;
+  BinaryPacket2.Hours = gpsData.hours;
+  BinaryPacket2.Minutes = gpsData.minutes;
+  BinaryPacket2.Seconds = gpsData.seconds;
+  BinaryPacket2.Latitude = float_lat;
+  BinaryPacket2.Longitude = float_lon;
+  BinaryPacket2.Altitude = (uint16_t)(gpsData.alt_raw/1000);
+  BinaryPacket2.Speed = (uint8_t)((float)gpsData.speed_raw*0.036); // Using NAV-VELNED gSpeed, which is in cm/s. Convert to kph.
+
+  // Temporary pDOP info, to determine suitable pDOP limits.
+  // float pDop = (float)gpsData.pDOP/10.0;
+  // if (pDop>255.0){
+  //  pDop = 255.0;
+  // }
+  // BinaryPacket.Speed = (uint8_t)pDop;
+  BinaryPacket2.BattVoltage = volts_scaled;
+  BinaryPacket2.Sats = gpsData.sats_raw;
+  BinaryPacket2.Temp = si4032_temperature;
+  BinaryPacket2.dummy1 = 0;
+  BinaryPacket2.dummy2 = 0;
+  BinaryPacket2.dummy3 = 0;
+  BinaryPacket2.dummy4 = NOGPS_counter*10;
+  BinaryPacket2.unused = 0;
+
+  // Add onto the sats_raw value to indicate if the GPS is in regular tracking (+100)
+  // or power optimized tracker (+200) modes.
+  if(gpsData.psmState == 1){
+    BinaryPacket2.Sats += 100;
+  } else if(gpsData.psmState == 2){
+    BinaryPacket2.Sats += 200;
+  }
+
+  BinaryPacket2.Checksum = (uint16_t)array_CRC16_checksum((char*)&BinaryPacket2,sizeof(BinaryPacket2)-2);
+
+
+#ifdef MFSKDEBUG1
+  // Write BinaryPacket into the RTTY transmit buffer as hex
+  memcpy(buf_mfsk,&BinaryPacket2,sizeof(BinaryPacket2));
+  sprintf(buf_rtty,"$$$$");
+  print_hex(buf_mfsk, sizeof(BinaryPacket2), buf_rtty+4);
+
+  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
+  sprintf(buf_rtty + 4 + sizeof(BinaryPacket2)*2, "__*%04X\n", CRC_rtty & 0xffff);
+  // $$$$e701010000000000000000000000000000000022020000000000000000006e8e__*01C0 (-9.1 dB SNR)
+
+  //Configure for transmit
+  tx_buffer = buf_rtty;
+  // Enable the radio, and set the tx_on flag to 1.
+  start_bits = RTTY_PRE_START_BITS;
+  radio_enable_tx();
+  current_mode = RTTY;
+  tx_on = 1;
+
+  // Wait until transmit has finished.
+  while(tx_on){
+    NVIC_SystemLPConfig(NVIC_LP_SEVONPEND, DISABLE);
+    __WFI();
+  }
+  _delay_ms(10000);
+  current_mode = MFSK;
+#endif
+
+  #ifdef CONTINUOUS_MODE
+    // Write Preamble characters into mfsk buffer.
+    sprintf(buf_mfsk, "\x1b\x1b\x1b\x1b");
+    // Encode the packet, and write into the mfsk buffer.
+    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+4,(unsigned char*)&BinaryPacket2,sizeof(BinaryPacket2));
+  #else
+    // Double length preamble to help the decoder lock-on after a quiet period.
+    // Write Preamble characters into mfsk buffer.
+    sprintf(buf_mfsk, "\x1b\x1b\x1b\x1b\x1b\x1b\x1b\x1b");
+    // Encode the packet, and write into the mfsk buffer.
+    int coded_len = horus_l2_encode_tx_packet((unsigned char*)buf_mfsk+8,(unsigned char*)&BinaryPacket2,sizeof(BinaryPacket2));
+  #endif
+
+#ifdef MFSKDEBUG2
+  // Write the coded packet into the RTTY transmit buffer as hex
+  //sprintf(buf_rtty,"$$$$");
+  strcpy(buf_rtty,"$$$$");
+  // ATTENTION: while the horus-Gui truncates in RAW line everything over some length, the full line cant be send in one packet
+  //            This sample dumps only the last 40 bytes
+  print_hex(buf_mfsk+8+40, coded_len-40, buf_rtty+4);
+  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
+  sprintf(buf_rtty+4 + (coded_len*2)-80,"*%04X\n", CRC_rtty & 0xffff);
+  // The first two x24 chars are the ** Prefix for Horus-Format
+  // 2424c16f102c0c1dc5c99316edcecd9455af7f3c2011d80c5a85fb230359c1fad0431c31c9d456df7ed8205a983b2a935f2df81d8289a1a6f87ac2a311b9cc72d5*1C71
+  tx_buffer = buf_rtty;
+  // Enable the radio, and set the tx_on flag to 1.
+  start_bits = RTTY_PRE_START_BITS;
+  radio_enable_tx();
+  current_mode = RTTY;
+  tx_on = 1;
+
+  // Wait until transmit has finished.
+  while(tx_on){
+    NVIC_SystemLPConfig(NVIC_LP_SEVONPEND, DISABLE);
+    __WFI();
+  }
+  current_mode = MFSK;
+  // Wait until tx_enable
+  while(tx_enable == 0){
+    NVIC_SystemLPConfig(NVIC_LP_SEVONPEND, DISABLE);
+    __WFI();
+  }
+  _delay_ms(1000);
+#endif
+
+  // Data to transmit is the coded packet length, plus the preamble.
+  #ifdef CONTINUOUS_MODE
+    packet_length = coded_len+4;
+  #else
+    packet_length = coded_len+8;
+  #endif
+
+  tx_buffer = buf_mfsk;
+
+  // Enable the radio, and set the tx_on flag to 1.
+  radio_enable_tx();
+  tx_on = 1;
+}
+
+#endif
 
 void send_morse_ident(){
   continuous_mode = 0;

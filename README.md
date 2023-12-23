@@ -1,13 +1,21 @@
 # RS41HUP (Ham Use Project) - Project Horus Fork
 Firmware for RS41 for HAM use.
 
-**IMPORTANT - I no longer maintain this repository. Please use [RS41ng](https://github.com/mikaelnousiainen/RS41ng) instead. I will also no longer be assigning Horus Binary v1 Payload IDs, please use the Horus Binary v2 mode instead.**
-
 It is possible to recycle RS41-SGP sondes for amateur radio use without any electrical changes! You just have to build a new firmware (this one) and apply it via a cheap programmer, the "ST-Linkv2" (or alternatives). The modified sonde can now transmit on a user-defined frequency in the 70cm band, with Habhub-compatible RTTY and (better performing) 4FSK telemetry!
 
 Released under GPL v2.
 
-**Check out Mikael's [RS41ng](https://github.com/mikaelnousiainen/RS41ng) repository for a much cleaner and well maintained RS41 firmware that supports the Horus 4FSK mode!**
+# Important info
+* This is a fork from  github.com/darksidelemm/RS41HUP  (not longer supported)
+* Major adds:
+  * Horus V2 protocoll (32 bytes) 
+  * GPS-Watchdog: reboots RS41 if GPS gets lost longer then timeout as defined
+
+* This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
+* If power does not matter, than have a look on RS41ng.
+* RS41ng is created by https://github.com/mikaelnousiainen/RS41ng.
+* An Version with some special needs will also be found on https://github.com/whallmann/RS41ng
+
 
 Original Repository: https://github.com/Qyon/STM32_RTTY, though this fork is based on [DF8OE's version](https://github.com/df8oe/RS41HUP).
 
@@ -20,7 +28,7 @@ Modifications by Mark Jessop <vk5qi@rfhead.net> include:
 
 
 # Compilation
-## Linux / OSX:
+## Linux / OSX:  (Remark: this forked info, wont work in my workspace - i found no solution)
 * Grab the latest GNU ARM Embedded toolchain from here: https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads
 * Extract the tarball to somewhere useful. In my case I'm using ~/opt/
 * Within the RS41HUP directory:
@@ -31,9 +39,10 @@ Modifications by Mark Jessop <vk5qi@rfhead.net> include:
 
 ## Windows:
 (Note, is likely broken - currently targeting Linux / OSX builds)
+I used to edit and compile the CooCox CoIDE - this works fine and it also uploads to the STM32 Board with ST-Link dongle.
 
 Use:
-https://www.wyzbee.com/download/Utilities/Software/CoIDE-1.7.8.exe
+https://www.softpedia.com/get/Programming/Coding-languages-Compilers/CooCox-CoIDE.shtml
 
 And:
 https://launchpad.net/gcc-arm-embedded/5.0/5-2016-q3-update/+download/gcc-arm-none-eabi-5_4-2016q3-20160926-win32.exe
@@ -51,6 +60,8 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
 #Changelog
+ * 23.12.2023 - Added a GPS-Watchdog: set a GPS-timeout after this the cpu makes a restart (GPS-jamming)
+ * 23.12.2023 - Added Horus V2 32-Byte Format. Set by compiler switch in config.h
  * 14.12.2016 - Reverse engineeded connections, initial hard work, resulting in working RTTY by SQ7FJB
  * 07.01.2017 - GPS now using proprietiary UBLOX protocol, more elastic code to set working frequency by SQ5RWU
  * 23.01.2017 - Test APRS code, small fixes in GPS code by SQ5RWU
@@ -59,7 +70,3 @@ Configuration settings are located in [config.h](./config.h). Modify as appropri
  * March 2018 - Addition of 4FSK binary mode support by Mark VK5QI
 
 
-#TODO
- * Temperature and moisture sensor support (temperature should be the easiest to get going first...)
- * Implementing protocol for using external devices on extension header
- * Configuration via extension header (serial connection) without need for reflashing firmware
