@@ -62,12 +62,16 @@ __IO uint16_t ADCVal[2];
 // Volatile Variables, used within interrupts.
 volatile int adc_bottom = 2000;
 volatile char flaga = 0; // GPS Status Flags
-volatile int led_enabled = 1; // Flag to disable LEDs at altitude.
+volatile int led_enabled = 0; // Flag to disable LEDs at altitude.
 
 volatile unsigned char pun = 0;
 volatile unsigned int cun = 10;
 volatile unsigned char tx_on = 0;
 volatile unsigned int tx_on_delay;
+volatile unsigned int sync_txdelay = 0;
+char dummy[50] = "START *F00\n";
+uint8_t freuqency_change = 1;
+
 volatile unsigned char tx_enable = 0;
 rttyStates send_rtty_status = rttyZero;
 volatile char *tx_buffer;
@@ -165,6 +169,52 @@ void USART1_IRQHandler(void) {
   }
 }
 
+/**
+ * Sync TX-Delay to GPS
+ */
+void Sync_tx_on_delay (void) {
+#ifdef SYNC_TX_WITH_GPS
+    uint16_t txdelay_in_seconds = 0;
+    uint16_t txdelay_in_ticks = 0;  // 1/100 second
+    // handle all in milliseconds (ms) until set "tx_on_delay" for timer ticks
+    //tx_on_delay = (TX_DELAY-3100) / (1000/BAUD_RATE);
+
+    if (gpsData.gpsFixOK == 1) {
+        if (sync_txdelay == 0u) {  // if still unsynced ...
+        	txdelay_in_seconds = gpsData.seconds + 10;
+        	// if txdelay > 60 then its to short to tx again after last TX
+        	if (txdelay_in_seconds >= 60) {
+        		txdelay_in_seconds = 120 - gpsData.seconds - 3;  // Time until the minute after next
+        	} else {
+        		txdelay_in_seconds = 60 - gpsData.seconds - 3;  // Time until the next full minute
+        	}
+        	txdelay_in_ticks = txdelay_in_seconds * 100;
+			tx_on_delay = txdelay_in_ticks ;
+			sync_txdelay = 1;
+        } else {
+        	// synced - check further syncs?
+            uint16_t txdelay_in_ms =  TX_DELAY;   // in ms defined in config.h #94
+            uint16_t txdelay_in_min =  TX_DELAY / 60000;   // safe if TX_DELAY is more then one minute
+            // .........................seconds of the tx_delay
+            if(((gpsData.seconds*1000) + (txdelay_in_ms%60000) < 55000) || ((gpsData.seconds*1000) + (txdelay_in_ms%60000) > 65000)) {
+            	// do nothing
+            	tx_on_delay = (TX_DELAY- 3000) / (1000/BAUD_RATE);
+            } else {
+            	// near full minute - so sync it to full minute
+          		txdelay_in_ms = (((txdelay_in_min + 2)*60) - gpsData.seconds) * 1000;
+            	txdelay_in_ticks = txdelay_in_ms / (1000/BAUD_RATE);
+    			tx_on_delay = txdelay_in_ticks + 250;
+            }
+         	//tx_on_delay = tx_on_delay - 310; // MFSK TX intervall already happend - so substract
+        }
+    } else {
+    	// without gps fix calculate the old way
+    	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
+    }
+#endif
+}
+
+
 //
 // Symbol Timing Interrupt
 // In here symbol transmission occurs.
@@ -207,7 +257,8 @@ void TIM2_IRQHandler(void) {
             if (*(++tx_buffer) == 0) {
               tx_on = 0;
               // Reset the TX Delay counter, which is decremented at the symbol rate.
-              tx_on_delay = TX_DELAY / (1000/BAUD_RATE);
+              // tx_on_delay = (TX_DELAY-5000) / (1000/BAUD_RATE);
+              Sync_tx_on_delay();
               tx_enable = 0;
               
               // If we're not in continuous mode, disable the transmitter now.
@@ -234,28 +285,40 @@ void TIM2_IRQHandler(void) {
 
         if(mfsk_symbol == -1){
           // Reached the end of the current character, increment the current-byte pointer.
-          if (current_mfsk_byte++ == packet_length) {
-              // End of the packet. Reset Counters and stop modulation.
-              radio_rw_register(0x73, 0x03, 1); // Idle at Symbol 3
-              current_mfsk_byte = 0;
-              tx_on = 0;
-              // Reset the TX Delay counter, which is decremented at the symbol rate.
-              tx_on_delay = TX_DELAY / (1000/BAUD_RATE);
-              tx_enable = 0;
+        	if (current_mfsk_byte++ == packet_length) {
+        		// End of the packet. Reset Counters and stop modulation.
+        		radio_rw_register(0x73, 0x03, 1); // Idle at Symbol 3
+        		current_mfsk_byte = 0;
+        		tx_on = 0;
+        		GPIO_ResetBits(GPIOB, RED);
+        		// Reset the TX Delay counter, which is decremented at the symbol rate.
+        		// Set next delay to TX
+        		Sync_tx_on_delay();
+        		tx_enable = 0;
 
-              // If we're not in continuous mode, disable the transmitter now.
-              #ifndef CONTINUOUS_MODE
-                radio_disable_tx();
-              #endif
-              
-          } else {
-            // We've now advanced to the next byte, grab the first symbol from it.
-            #ifdef MFSK_4_ENABLED
-              mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
-            #elif MFSK_16_ENABLED
-              mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
-            #endif
-          }
+        		// If we're not in continuous mode, disable the transmitter now.
+              	#ifndef CONTINUOUS_MODE
+                  radio_disable_tx();
+                #endif
+
+				#ifdef TRANSMIT_FREQUENCY_2ND
+				// setting TX frequency
+				if (freuqency_change) {
+					radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+				} else {
+					radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
+				}
+				freuqency_change = !freuqency_change;
+				#endif
+
+        	} else {
+				// We've now advanced to the next byte, grab the first symbol from it.
+				#ifdef MFSK_4_ENABLED
+				  mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
+				#elif MFSK_16_ENABLED
+				  mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
+				#endif
+        	}
         }
         // Set the symbol!
         if(mfsk_symbol != -1){
@@ -276,7 +339,8 @@ void TIM2_IRQHandler(void) {
               current_mfsk_byte = 0;
               tx_on = 0;
               // Reset the TX Delay counter, which is decremented at the symbol rate.
-              tx_on_delay = TX_DELAY / (1000/BAUD_RATE);
+              // tx_on_delay = (TX_DELAY-3500) / (1000/BAUD_RATE);
+              Sync_tx_on_delay();
               tx_enable = 0;
               
           } else {
@@ -289,7 +353,7 @@ void TIM2_IRQHandler(void) {
           radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
         }
       } else{
-        // Ummmm. 
+        // No more modes until now
       }
     }else{
       // TX is off 
@@ -305,10 +369,13 @@ void TIM2_IRQHandler(void) {
           radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
         }
       #endif
+
+
     }
+    GPIO_ResetBits(GPIOB, RED);
 
     // Delay between Transmissions Logic.
-    // tx_on_delay is set at the end of a RTTY transmission above, and counts down
+    // tx_on_delay is set at the end of a RTTY/MFSK transmission above, and counts down
     // at the interrupt rate. When it hits zero, we set tx_enable to 1, which allows
     // the main loop to continue.
     if (!tx_on && --tx_on_delay == 0) {
@@ -343,7 +410,7 @@ void TIM2_IRQHandler(void) {
         pun = 1;
       }
       // Wait 200 symbols.
-      cun = 200;
+      cun = 100;
     }
   }
 }
@@ -352,22 +419,22 @@ int main(void) {
 #ifdef DEBUG
   debug();
 #endif
+
+
   RCC_Conf();
+
   NVIC_Conf();
   init_port();
-
   init_timer(BAUD_RATE);
 
   delay_init();
   ublox_init();
 
-  GPIO_SetBits(GPIOB, RED);
-  // NOTE - Green LED is inverted. (Reset to activate, Set to deactivate)
-  GPIO_SetBits(GPIOB, GREEN);
+
   USART_SendData(USART3, 0xc);
 
   radio_soft_reset();
-  // setting RTTY TX frequency
+  // setting TX frequency
   radio_set_tx_frequency(TRANSMIT_FREQUENCY);
 
   // setting TX power
@@ -401,9 +468,11 @@ int main(void) {
   // not continuously throughout transmissions. If it is enabled, and there is a significant temperature change,
   // the transmitter *will* drift off frequency.
   // The fix appears to be to briefly disable, then re-enable the transmitter, which forces a re-calibration.
+  GPIO_ResetBits(GPIOB, RED);
+  _delay_ms(5000);
   radio_enable_tx();
-
-
+  //GPIO_SetBits(GPIOB, RED);
+  sync_txdelay = 0;
   while (1) {
     // Don't do anything until the previous transmission has finished.
     if (tx_on == 0 && tx_enable) {
@@ -422,7 +491,6 @@ int main(void) {
           // We've just transmitted a RTTY packet, now configure for 4FSK.
           current_mode = MFSK;
           #if defined(MFSK_4_ENABLED)
-            if (led_enabled) GPIO_SetBits(GPIOB, RED);
             radio_enable_tx();
 			#ifdef HORUS_V1
                send_mfsk_packetV1();
@@ -435,7 +503,6 @@ int main(void) {
           // We've finished the 4FSK transmission, grab new data.
           current_mode = STARTUP;
           radio_disable_tx();
-          if (led_enabled) GPIO_ResetBits(GPIOB, RED);
 
 
           #ifdef MORSE_IDENT
@@ -475,7 +542,7 @@ int main(void) {
               }
 
               // Sleep
-              // TODO: How do we make this a non-busy-wait sleep?
+              // How do we make this a non-busy-wait sleep?
               _delay_ms(1000);
               deep_sleep_timer = deep_sleep_timer - 1000;
             }
@@ -603,6 +670,7 @@ void send_rtty_packet() {
   tx_on = 1;
   // From here the timer interrupt handles things.
 }
+
 
 //------------------ HORUS V1 --------------------------------------
 #ifdef HORUS_V1
@@ -788,15 +856,16 @@ void send_mfsk_packetV2(){
 
   BinaryPacket2.Checksum = (uint16_t)array_CRC16_checksum((char*)&BinaryPacket2,sizeof(BinaryPacket2)-2);
 
-
+#define MFSKDEBUGxx
 #ifdef MFSKDEBUG1
   // Write BinaryPacket into the RTTY transmit buffer as hex
-  memcpy(buf_mfsk,&BinaryPacket2,sizeof(BinaryPacket2));
+//  memcpy(buf_mfsk,&BinaryPacket2,sizeof(BinaryPacket2));
   sprintf(buf_rtty,"$$$$");
-  print_hex(buf_mfsk, sizeof(BinaryPacket2), buf_rtty+4);
-
-  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
-  sprintf(buf_rtty + 4 + sizeof(BinaryPacket2)*2, "__*%04X\n", CRC_rtty & 0xffff);
+  //print_hex(buf_mfsk, sizeof(BinaryPacket2), buf_rtty+4);
+  strlcat(buf_rtty+4,dummy,49);
+//  CRC_rtty = string_CRC16_checksum(buf_rtty + 4);
+//  sprintf(buf_rtty+4+20,"*%04X\n", CRC_rtty & 0xffff);
+//  sprintf(buf_rtty + 4 + sizeof(BinaryPacket2)*2, "__*%04X\n", CRC_rtty & 0xffff);
   // $$$$e701010000000000000000000000000000000022020000000000000000006e8e__*01C0 (-9.1 dB SNR)
 
   //Configure for transmit
@@ -812,7 +881,7 @@ void send_mfsk_packetV2(){
     NVIC_SystemLPConfig(NVIC_LP_SEVONPEND, DISABLE);
     __WFI();
   }
-  _delay_ms(10000);
+  _delay_ms(1000);
   current_mode = MFSK;
 #endif
 

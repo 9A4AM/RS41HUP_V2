@@ -12,7 +12,10 @@
 
 
 //************GLOBAL Settings*****************
+// This is the main frequency.  To send alternating with a second frequency, enable the following line
 #define TRANSMIT_FREQUENCY  434.7140f //Mhz middle frequency
+//#define TRANSMIT_FREQUENCY_2ND  437.6000f //Mhz middle frequency
+
 #define BAUD_RATE  100 // RTTY & MFSK Baud rate.
                        // NOTE: Currently supported MFSK baud rates with horus-gui are 50 and 100 baud,
                        // with the suggested MFSK baud rate being 100 baud.
@@ -52,7 +55,7 @@
 
 
 // TX Power
-#define TX_POWER  4 // PWR 0...7 0- MIN ... 7 - MAX
+#define TX_POWER  5 // PWR 0...7 0- MIN ... 7 - MAX
 // Power Levels measured at 434.650 MHz, using a Rigol DSA815, and a 10 kHz RBW
 // Power measured by connecting a short (30cm) length of RG316 directly to the
 // antenna/ground pads at the bottom of the RS41 PCB.
@@ -84,14 +87,18 @@
 // After this, the TX Counter starts again at nbr 1
 // This works at start of the Sonde, also during flight if something disturbs GPS reception (jamming over military areas)
 // DISABLE:  comment out this line //
-#define NOGPS_RESET_AFTER_TXCOUNT 40
+// Recomandation:  request reboot after 7 Minutes: = 420 Seconds * 1000 (ms) / TX_DELAY (ms) - round to integer please
+#define NOGPS_RESET_AFTER_TXCOUNT 7
 
 // Delay *between* transmitted packets (milliseconds)
 // If you only have MFSK_4 enabled, and MFSK_CONTINUOUS (below) is disabled,
 // Then the transmitter will turn off between transmissions. This saves about 50mA of power consumption.
 // The maximum TX_DELAY is 65535*(1000/BAUD_RATE), so about 655.35 seconds for 100 baud
-// This TX-Delay + TX duration time = real intervall. It is unsynced (no gps reference)
-#define TX_DELAY  57000
+#define TX_DELAY  60000
+// Try to sync the TX to start on full minute if GPSfix is available.
+// Disable: insert "//" before
+// The value behind is the offset after the minute. VALUE IS NOT IN USE AT THIS POINT
+#define SYNC_TX_WITH_GPS 1
 
 // If defined, transmit a short 20ms 'pip' between transmissions every X milliseconds.
 // This number needs to be smaller than TX_DELAY
