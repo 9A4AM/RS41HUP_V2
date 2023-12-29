@@ -206,7 +206,9 @@ void USART1_IRQHandler(void) {
  * Sync TX-Delay to GPS
  */
 void Sync_tx_on_delay (void) {
-#ifdef SYNC_TX_WITH_GPS
+#ifndef SYNC_TX_WITH_GPS
+	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
+#else
     uint16_t txdelay_in_seconds = 0;
     uint16_t txdelay_in_ticks = 0;  // 1/100 second
     // handle all in milliseconds (ms) until set "tx_on_delay" for timer ticks
