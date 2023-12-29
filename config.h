@@ -87,7 +87,8 @@
 // After this, the TX Counter starts again at nbr 1
 // This works at start of the Sonde, also during flight if something disturbs GPS reception (jamming over military areas)
 // DISABLE:  comment out this line //
-// Recomandation:  request reboot after 7 Minutes: = 420 Seconds * 1000 (ms) / TX_DELAY (ms) - round to integer please
+// Recommendation:  request for reboot after 7 Minutes if TX_DELAY 60s : = 420 Seconds * 1000 (ms) / TX_DELAY (ms) - round to integer please
+// if TX_DELAY smaller, make NOGPS_RESET_AFTER_TXCOUNT bigger
 #define NOGPS_RESET_AFTER_TXCOUNT 7
 
 // Delay *between* transmitted packets (milliseconds)
@@ -102,6 +103,8 @@
 
 // If defined, transmit a short 20ms 'pip' between transmissions every X milliseconds.
 // This number needs to be smaller than TX_DELAY
+// IF TRANSMIT_FREQUENCY_2ND is set, then PIP changes each interval (5s) also on the 2nd frequency
+// ... so PIP is heard on one frequency each 10s.
 // Comment out the line to disable this.
 //#define TX_PIP  5000
 

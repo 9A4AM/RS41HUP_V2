@@ -71,6 +71,7 @@ volatile unsigned int tx_on_delay;
 volatile unsigned int sync_txdelay = 0;
 char dummy[50] = "START *F00\n";
 uint8_t freuqency_change = 1;
+uint8_t freuqency_change_PIP = 1;
 
 volatile unsigned char tx_enable = 0;
 rttyStates send_rtty_status = rttyZero;
@@ -206,9 +207,7 @@ void USART1_IRQHandler(void) {
  * Sync TX-Delay to GPS
  */
 void Sync_tx_on_delay (void) {
-#ifndef SYNC_TX_WITH_GPS
-	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
-#else
+#ifdef SYNC_TX_WITH_GPS
     uint16_t txdelay_in_seconds = 0;
     uint16_t txdelay_in_ticks = 0;  // 1/100 second
     // handle all in milliseconds (ms) until set "tx_on_delay" for timer ticks
@@ -247,6 +246,10 @@ void Sync_tx_on_delay (void) {
     	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
     }
 #endif
+#ifndef SYNC_TX_WITH_GPS
+	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
+#endif
+
 }
 
 
@@ -334,15 +337,6 @@ void TIM2_IRQHandler(void) {
                   radio_disable_tx();
                 #endif
 
-				#ifdef TRANSMIT_FREQUENCY_2ND
-				// setting TX frequency
-				if (freuqency_change) {
-					radio_set_tx_frequency(TRANSMIT_FREQUENCY);
-				} else {
-					radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
-				}
-				freuqency_change = !freuqency_change;
-				#endif
 
         	} else {
 				// We've now advanced to the next byte, grab the first symbol from it.
@@ -420,13 +414,25 @@ void TIM2_IRQHandler(void) {
     #ifdef TX_PIP
     #ifndef CONTINUOUS_MODE
       if ((tx_enable == 0) && (tx_on_delay%tx_pip)==TX_PIP_SYMBOLS){
-        radio_rw_register(0x73, 0x00, 1);
+    	// if alternating frequency is activ, every PIP will switch between also each PIP Interval
+
+    	#ifdef TRANSMIT_FREQUENCY_2ND
+  		freuqency_change_PIP = !freuqency_change_PIP;
+		// setting TX frequency
+		if (freuqency_change_PIP) {
+			radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
+		} else {
+			radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+		}
+		#endif
+
+		radio_rw_register(0x73, 0x00, 1);
         radio_enable_tx();
       } else if ((tx_enable == 0) && (tx_on_delay%tx_pip)==0){
-        radio_disable_tx();
-      }
-    #endif
-    #endif
+    	  radio_disable_tx();
+        }
+    #endif  // not CONTINUOUS_MODE
+    #endif  // TX_PIP active
 
     // Green LED Blinking Logic
     if (--cun == 0) {
@@ -523,6 +529,18 @@ int main(void) {
           current_mode = MFSK;
           #if defined(MFSK_4_ENABLED)
             radio_enable_tx();
+			#ifdef TRANSMIT_FREQUENCY_2ND
+
+			freuqency_change = !freuqency_change;
+			// setting TX frequency
+			if (freuqency_change) {
+				radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
+			} else {
+				radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+			}
+
+			#endif
+
 			#ifdef HORUS_V1
                send_mfsk_packetV1();
 			#endif
