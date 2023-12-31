@@ -12,6 +12,7 @@ Released under GPL v2.
   * GPS-Watchdog: reboots RS41 if GPS gets lost longer then timeout as defined
   * GPS-TX Sync if Fix is available every minute
   * Second frequency if defined. changes every TX intervall between both
+  * MORSECODE: Transmit additional data like Alt, QRA Locator, Sat-Count - or NO GPS if jamming
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
 * If power does not matter, than have a look on RS41ng.
@@ -62,6 +63,7 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
 #Changelog
+ * 31.12.2023 - Checked and extend MORSECODE data 
  * 26.12.2023 - Added choice for 2nd TX frequency: if activated, changes between each tx intervall.
  * 26.12.2023 - Added GPS-Sync: TX starts every full minute if gps-fix is availble
  * 23.12.2023 - Added a GPS-Watchdog: set a GPS-timeout after this the cpu makes a restart (GPS-jamming)
