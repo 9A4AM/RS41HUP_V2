@@ -37,9 +37,10 @@
 // Payload IDs can be reqested by either raising an Issue, or a Pull Request on https://github.com/projecthorus/horusdemodlib/
 // VERSION 1 = An ID of 0 ('4FSKTEST') can be used for on-ground testing, but DO NOT use this for a flight!!!
 // VERSION 2 = An ID of 256 ('4FSKTEST-V2') can be used for on-ground testing, but DO NOT use this for a flight!!!
-
+//================================================
 //#define HORUS_V1
 #define HORUS_V2
+//================================================
 
 #ifdef HORUS_V1
   #define BINARY_PAYLOAD_ID 0 // Payload ID for use in Binary packets
@@ -55,7 +56,9 @@
 
 
 // TX Power
+//================================================
 #define TX_POWER  5 // PWR 0...7 0- MIN ... 7 - MAX
+//================================================
 // Power Levels measured at 434.650 MHz, using a Rigol DSA815, and a 10 kHz RBW
 // Power measured by connecting a short (30cm) length of RG316 directly to the
 // antenna/ground pads at the bottom of the RS41 PCB.
@@ -79,7 +82,9 @@
 // If enabled, transmit incrementing tones in the 'idle' period between packets.
 // This will only function if ONLY MFSK is enabled.
 // Note, you need to COMMENT this line out to disable this, not just set it to 0
+//================================================
 //#define CONTINUOUS_MODE 1
+//================================================
 
 // If anyway GPS Fix gets lost a counter increments each TX-Intervall
 // if counter reaches NOGPS_RESET_AFTER_TXCOUNT then an SystemRestart will be fired
@@ -89,48 +94,65 @@
 // DISABLE:  comment out this line //
 // Recommendation:  request for reboot after 7 Minutes if TX_DELAY 60s : = 420 Seconds * 1000 (ms) / TX_DELAY (ms) - round to integer please
 // if TX_DELAY smaller, make NOGPS_RESET_AFTER_TXCOUNT bigger
+//================================================
 #define NOGPS_RESET_AFTER_TXCOUNT 7
+//================================================
 
 // Delay *between* transmitted packets (milliseconds)
 // If you only have MFSK_4 enabled, and MFSK_CONTINUOUS (below) is disabled,
 // Then the transmitter will turn off between transmissions. This saves about 50mA of power consumption.
 // The maximum TX_DELAY is 65535*(1000/BAUD_RATE), so about 655.35 seconds for 100 baud
+//================================================
 #define TX_DELAY  60000
+//================================================
 // Try to sync the TX to start on full minute if GPSfix is available.
 // Disable: insert "//" before
 // The value behind is the offset after the minute. VALUE IS NOT IN USE AT THIS POINT
+//================================================
 #define SYNC_TX_WITH_GPS 1
+//================================================
 
 // If defined, transmit a short 20ms 'pip' between transmissions every X milliseconds.
 // This number needs to be smaller than TX_DELAY
 // IF TRANSMIT_FREQUENCY_2ND is set, then PIP changes each interval (5s) also on the 2nd frequency
 // ... so PIP is heard on one frequency each 10s.
 // Comment out the line to disable this.
+//================================================
 //#define TX_PIP  5000
-
+//================================================
 // Number of symbols to transmit the pip for. 
 // At 100 baud, each symbol is 10ms
+//================================================
 #define TX_PIP_SYMBOLS  5
+//================================================
 
 // Enable uBlox PowerSave Mode
 // Drops current consummption from the GPS somewhat.
 // Positional accuracy may be slightly impacted. Suggest not using this for short flights.
 // Flight-tested on 2020-12.
 // if "1" then the sat-counter may be start with 100 oder 200 values. If 2xx reached, this needs half enery then in full mode
+//================================================
 #define UBLOX_POWERSAVE 1
+//================================================
 
 // *********** Morse Ident **********************
 // If uncommented, send a morse code ident every X transmit cycles, to comply
 // with amateur radio regulations, if operating under an amateur radio license.
 // With continuous 4FSK transmissions, 100 transmit cycles is approx 5 minutes.
-//#define MORSE_IDENT 10
+///================================================
+//#define MORSE_IDENT 5
+//================================================
 
-// Morse message to send. 
-#define MORSE_MESSAGE "DE Callsign... your text"
-
+// If enabled above, Morse message to send.
+//================================================
+#define MORSE_MESSAGE "VVV DE DF7PN "
+// want more details in the morese message? enable MORSE_EXTENDED_MSG (recommended)
+// then following data is appended to MORSE_MESSAGE:
+// / Altitude in meters (A) / Satcount (S) / Locator (QRA) 8 Characters eg: JO52AX01
+#define MORSE_EXTENDED_MSG
 // Speed of morse transmission
-#define MORSE_WPM 25
-
+#define MORSE_WPM 28
+//================================================
 
 // *********** Deep Sleep Mode ****(not tested yet by whallmann) **************
 // Deep Sleep Mode intended for long duration flights only!
@@ -151,17 +173,23 @@
 // Go to sleep for X minutes between transmissions.
 // In this time, the GPS will be completely powered down.
 // If defined, sleep for this many minutes between transmissions.
+//================================================
 //#define DEEP_SLEEP 2
+//================================================
 
 // Send a short pip every X milliseconds to let people know the transmitter is running.
+//================================================
 #define DEEP_SLEEP_PIPS 10000
+//================================================
 
 
 
 //***********Other Settings ******************
 // Switch sonde ON/OFF via Button
 // If this is a flight you might prevent sonde from powered off by button
+//================================================
 #define ALLOW_DISABLE_BY_BUTTON 1
+//================================================
 
 
 #endif

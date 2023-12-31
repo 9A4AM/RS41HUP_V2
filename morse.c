@@ -54,7 +54,9 @@ char* MORSE_NUMBERS[] = {
 
 // Symbols (though we handle this in a bit of a hacky way.)
 char* MORSE_SYMBOLS[] = {
-	".-.-.-" // .
+	".-.-.-", // Point
+	".-.-.", // + EOT
+	"-..-." // Slash
 };
 
 
@@ -119,6 +121,14 @@ void sendMorse(char* message){
 
 	    else if (current == '.'){
 	    	sendMorseSequence(MORSE_SYMBOLS[0]);
+	    }
+
+	    else if (current == '+'){  // End of Transmission
+	    	sendMorseSequence(MORSE_SYMBOLS[1]);
+	    }
+
+	    else if (current == '/'){
+	    	sendMorseSequence(MORSE_SYMBOLS[2]);
 	    }
 
 	    // Space character (3500  ms)

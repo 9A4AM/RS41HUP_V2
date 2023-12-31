@@ -26,6 +26,7 @@
 #include "horus_l2.h"
 #include "morse.h"
 #include "cmsis/core_cm3.h"
+#include "locator.h"
 
 // If enabled, print out binary packets as hex before and after coding.
 //#define MFSKDEBUG 1
@@ -56,6 +57,7 @@ char status[2] = {'N'};
 uint16_t CRC_rtty = 0x12ab;  //checksum (dummy initial value)
 char buf_rtty[300];
 char buf_mfsk[300];
+char buf_morse[300];
 
 __IO uint16_t ADCVal[2];
 
@@ -996,15 +998,39 @@ void send_mfsk_packetV2(){
 #endif
 
 void send_morse_ident(){
-  continuous_mode = 0;
-  radio_rw_register(0x73, 0x00, 1);
-  radio_inhibit_tx();
-  _delay_ms(500);
-  sendMorse(MORSE_MESSAGE);
-  _delay_ms(500);
-  #ifdef CONTINUOUS_MODE
-    continuous_mode = 1;
-  #endif
+    char buf_temp[100];
+    char buf_qra[14];
+	continuous_mode = 0;
+	radio_rw_register(0x73, 0x00, 1);
+	radio_inhibit_tx();
+	_delay_ms(500);
+
+	// Expand the MORSE MESSAGE
+	//================================================
+	memset(buf_morse, '\0', sizeof(buf_morse));
+	strcpy(buf_morse,MORSE_MESSAGE);
+#ifdef MORSE_EXTENDED_MSG
+	memset(buf_temp, '\0', sizeof(buf_temp));
+	memset(buf_qra, '\0', sizeof(buf_qra));
+	if ((gpsData.gpsFixOK == 1) && (gpsData.sats_raw > 0)) {
+		locator_from_lonlat(gpsData.lon_raw,gpsData.lat_raw,4,buf_qra);
+		sprintf(buf_temp," / A %ldm / S %d / QRA %s +",gpsData.alt_raw/1000,gpsData.sats_raw,buf_qra);
+	} else {
+		#ifdef NOGPS_RESET_AFTER_TXCOUNT
+		sprintf(buf_temp," / No GPS / boot ON +");
+		#else
+		sprintf(buf_temp," / No GPS / boot OFF +");
+		#endif
+	}
+	strcat(buf_morse, buf_temp);
+#endif
+	//================================================
+
+	sendMorse(buf_morse); // MORSE_MESSAGE);
+	_delay_ms(500);
+	#ifdef CONTINUOUS_MODE
+	continuous_mode = 1;
+	#endif
 }
 
 
