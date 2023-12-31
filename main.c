@@ -695,7 +695,7 @@ void send_rtty_packet() {
  
   // Produce a RTTY Sentence (Compatible with the existing HORUS RTTY payloads)
   
-  n = sprintf(buf_rtty,"\n\n\n\n$$$$$%s,%d,%02u:%02u:%02u,%s%d.%04"PRId32",%s%d.%04" PRId32 ",%"PRId32",%d,%d,%d,%d",
+  n = sprintf(buf_rtty,"\n\n\n\n$$$$$%s,%d,%02u:%02u:%02u,%s%d.%04" PRId32 ",%s%d.%04" PRId32 ",%"PRId32",%d,%d,%d,%d",
         callsign,
         send_count,
         gpsData.hours, gpsData.minutes, gpsData.seconds,
@@ -1014,12 +1014,12 @@ void send_morse_ident(){
 	memset(buf_qra, '\0', sizeof(buf_qra));
 	if ((gpsData.gpsFixOK == 1) && (gpsData.sats_raw > 0)) {
 		locator_from_lonlat(gpsData.lon_raw,gpsData.lat_raw,4,buf_qra);
-		sprintf(buf_temp," / A %ldm / S %d / QRA %s +",gpsData.alt_raw/1000,gpsData.sats_raw,buf_qra);
+		sprintf(buf_temp," / A %ldm / S %d / QRA %s / V %d / T %d +",gpsData.alt_raw/1000,gpsData.sats_raw,buf_qra,voltage,si4032_temperature);
 	} else {
 		#ifdef NOGPS_RESET_AFTER_TXCOUNT
-		sprintf(buf_temp," / No GPS / boot ON +");
+		sprintf(buf_temp," / No GPS / boot ON / V %d / T %d +",voltage,si4032_temperature);
 		#else
-		sprintf(buf_temp," / No GPS / boot OFF +");
+		sprintf(buf_temp," / No GPS / boot OFF / V %d / T %d +",voltage,si4032_temperature);
 		#endif
 	}
 	strcat(buf_morse, buf_temp);
