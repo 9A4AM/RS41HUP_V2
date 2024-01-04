@@ -70,6 +70,7 @@ volatile unsigned char pun = 0;
 volatile unsigned int cun = 10;
 volatile unsigned char tx_on = 0;
 volatile unsigned int tx_on_delay;
+volatile unsigned int tx_on_last_delay_ms = 0;
 volatile unsigned int sync_txdelay = 0;
 char dummy[50] = "START *F00\n";
 uint8_t freuqency_change = 1;
@@ -214,42 +215,59 @@ void Sync_tx_on_delay (void) {
     uint16_t txdelay_in_ticks = 0;  // 1/100 second
     // handle all in milliseconds (ms) until set "tx_on_delay" for timer ticks
     //tx_on_delay = (TX_DELAY-3100) / (1000/BAUD_RATE);
+//    float tx_delay_dec = TX_DELAY / 60000;
+    // get newest status
+    ublox_get_last_data(&gpsData);
 
-    if (gpsData.gpsFixOK == 1) {
-        if (sync_txdelay == 0u) {  // if still unsynced ...
-        	txdelay_in_seconds = gpsData.seconds + 10;
-        	// if txdelay > 60 then its to short to tx again after last TX
-        	if (txdelay_in_seconds >= 60) {
-        		txdelay_in_seconds = 120 - gpsData.seconds - 3;  // Time until the minute after next
-        	} else {
-        		txdelay_in_seconds = 60 - gpsData.seconds - 3;  // Time until the next full minute
-        	}
-        	txdelay_in_ticks = txdelay_in_seconds * 100;
+    if ((gpsData.gpsFixOK == 1) && (gpsData.sats_raw >= 3)) {
+        if (sync_txdelay == 0) {  // if still unsynced ...
+        	// how many seconds up to next full minute?
+        	txdelay_in_seconds = 60 - gpsData.seconds;
+			#ifdef TX_DELAY_OFFSET
+        		txdelay_in_seconds += (TX_DELAY_OFFSET / 1000);
+			#endif
+        	// if lower then 10s to next transmit then wait for miniute after this interval
+        	//if (txdelay_in_seconds < 10) txdelay_in_seconds =+ 60;
+
+        	txdelay_in_ticks = (txdelay_in_seconds) * 100 ;
 			tx_on_delay = txdelay_in_ticks ;
+            // internal reference without OFFSET
+			tx_on_last_delay_ms = 0;
 			sync_txdelay = 1;
         } else {
-        	// synced - check further syncs?
-            uint16_t txdelay_in_ms =  TX_DELAY;   // in ms defined in config.h #94
-            uint16_t txdelay_in_min =  TX_DELAY / 60000;   // safe if TX_DELAY is more then one minute
-            // .........................seconds of the tx_delay
-            if(((gpsData.seconds*1000) + (txdelay_in_ms%60000) < 55000) || ((gpsData.seconds*1000) + (txdelay_in_ms%60000) > 65000)) {
-            	// do nothing
-            	tx_on_delay = (TX_DELAY- 3000) / (1000/BAUD_RATE);
+        	// already synced to full minute plus OFFSET
+            uint32_t txdelay_in_ms =  TX_DELAY - 3000;   // in ms defined in config.h #94
+            uint16_t txdelay_in_min =  txdelay_in_ms / 60000;
+            // internal counter add time to next TX
+            tx_on_last_delay_ms += txdelay_in_ms;
+        	// at this point we already have 3 sec sent - so TXDELAY - 3000 ms left for next TX point
+        	tx_on_last_delay_ms += 3000;
+            //  If near a full minute - correct it to this full minute
+            if (((tx_on_last_delay_ms % 60000) <= 2000) || ((tx_on_last_delay_ms % 60000) >= 58000)) {
+            	// trim next interval exact to a full minute
+				#ifdef TX_DELAY_OFFSET
+            		tx_on_last_delay_ms = (60 - (gpsData.seconds-(TX_DELAY_OFFSET/1000))) * 1000 + (txdelay_in_min * 60000);
+				#else
+            		tx_on_last_delay_ms = (60 - gpsData.seconds) * 1000 + (txdelay_in_min * 60000);
+				#endif
+          		txdelay_in_seconds = tx_on_last_delay_ms / 1000;
+            	tx_on_last_delay_ms = 0;
             } else {
-            	// near full minute - so sync it to full minute
-          		txdelay_in_ms = (((txdelay_in_min + 2)*60) - gpsData.seconds) * 1000;
-            	txdelay_in_ticks = txdelay_in_ms / (1000/BAUD_RATE);
-    			tx_on_delay = txdelay_in_ticks + 250;
+            	txdelay_in_seconds = txdelay_in_ms / 1000;
+            	// tx_on_last_delay_ms = tx_on_last_delay_ms % 60000;
             }
-         	//tx_on_delay = tx_on_delay - 310; // MFSK TX intervall already happend - so substract
+
+            txdelay_in_ticks = txdelay_in_seconds * 100 ;
+			tx_on_delay = txdelay_in_ticks ;
         }
     } else {
     	// without gps fix calculate the old way
-    	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
+    	tx_on_delay = (TX_DELAY-2000) / (1000/BAUD_RATE);
+    	sync_txdelay = 0;  // start sync again if fix is ok
     }
 #endif
 #ifndef SYNC_TX_WITH_GPS
-	tx_on_delay = (TX_DELAY-3000) / (1000/BAUD_RATE);
+	tx_on_delay = (TX_DELAY) / (1000/BAUD_RATE);
 #endif
 
 }
@@ -549,6 +567,7 @@ int main(void) {
 			#ifdef HORUS_V2
 			   send_mfsk_packetV2();
 			#endif
+
           #endif
         } else {
           // We've finished the 4FSK transmission, grab new data.

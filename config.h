@@ -13,8 +13,10 @@
 
 //************GLOBAL Settings*****************
 // This is the main frequency.  To send alternating with a second frequency, enable the following line
+//================================================
 #define TRANSMIT_FREQUENCY  434.7140f //Mhz middle frequency
 //#define TRANSMIT_FREQUENCY_2ND  437.6000f //Mhz middle frequency
+//================================================
 
 #define BAUD_RATE  100 // RTTY & MFSK Baud rate.
                        // NOTE: Currently supported MFSK baud rates with horus-gui are 50 and 100 baud,
@@ -105,11 +107,17 @@
 //================================================
 #define TX_DELAY  60000
 //================================================
+//Shift TX Time within the minute up to milliseconds to avoid overlapping with other TX
+//Only works if SYNC_TX_WITH_GPS is activ
+//ATTENTION: do NOT set OFFSET HIGHER THEN TX_DELAY - This results in unexpected behavior
+//================================================
+#define TX_DELAY_OFFSET  20000
+//================================================
+
 // Try to sync the TX to start on full minute if GPSfix is available.
 // Disable: insert "//" before
-// The value behind is the offset after the minute. VALUE IS NOT IN USE AT THIS POINT
 //================================================
-#define SYNC_TX_WITH_GPS 1
+#define SYNC_TX_WITH_GPS
 //================================================
 
 // If defined, transmit a short 20ms 'pip' between transmissions every X milliseconds.
