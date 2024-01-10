@@ -27,6 +27,7 @@
 #include "morse.h"
 #include "cmsis/core_cm3.h"
 #include "locator.h"
+#include "aprs.h"
 
 // If enabled, print out binary packets as hex before and after coding.
 //#define MFSKDEBUG 1
@@ -41,6 +42,7 @@
 #define RTTY 1
 #define MFSK 2
 #define FSK_2 3
+#define APRS 4
 
 volatile int current_mode = STARTUP;
 struct TBinaryPacketV1 BinaryPacket1;
@@ -284,192 +286,209 @@ void TIM2_IRQHandler(void) {
   if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
     TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 
-    if (ALLOW_DISABLE_BY_BUTTON){
-      if (ADCVal[1] > adc_bottom){
-        button_pressed++;
-        if (button_pressed > (BAUD_RATE / 3)){
-          disable_armed = 1;
-          led_red_on();
-        }
-      } else {
-        if (disable_armed){
-          GPIO_SetBits(GPIOA, GPIO_Pin_12);
-        }
-        button_pressed = 0;
-      }
+    // decide if aprs OR all other other modes
+    if (aprs_is_active()){
+          aprs_timer_handler();
+    } else {
+    	// all other modes to check
+		if (ALLOW_DISABLE_BY_BUTTON){
+		  if (ADCVal[1] > adc_bottom){
+			button_pressed++;
+			if (button_pressed > (BAUD_RATE / 3)){
+			  disable_armed = 1;
+			  led_red_on();
+			}
+		  } else {
+			if (disable_armed){
+			  GPIO_SetBits(GPIOA, GPIO_Pin_12);
+			}
+			button_pressed = 0;
+		  }
 
-      if (button_pressed == 0) {
-        adc_bottom = ADCVal[1] * 1.1; // dynamical reference for power down level
-      }
-    }
-      
-    if (tx_on) {
-      // RTTY Symbol selection logic.
-      if(current_mode == RTTY){
-        send_rtty_status = send_rtty((char *) tx_buffer);
-
-        if (!disable_armed){
-          if (send_rtty_status == rttyEnd) {
-            if (led_enabled) { led_red_on(); }
-            if (*(++tx_buffer) == 0) {
-              tx_on = 0;
-              // Reset the TX Delay counter, which is decremented at the symbol rate.
-              // tx_on_delay = (TX_DELAY-5000) / (1000/BAUD_RATE);
-              Sync_tx_on_delay();
-              tx_enable = 0;
-              
-              // If we're not in continuous mode, disable the transmitter now.
-              #ifndef CONTINUOUS_MODE
-                radio_disable_tx();
-              #endif
-            }
-          } else if (send_rtty_status == rttyOne) {
-            radio_rw_register(0x73, RTTY_DEVIATION, 1);
-            if (led_enabled) led_red_on();
-          } else if (send_rtty_status == rttyZero) {
-            radio_rw_register(0x73, 0x00, 1);
-            if (led_enabled) led_red_off();
-          }
-        }
-      } else if (current_mode == MFSK) {
-        // 4FSK Symbol Selection Logic
-        // Get Symbol to transmit.
-        #ifdef MFSK_4_ENABLED
-          mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
-        #elif MFSK_16_ENABLED
-          mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
-        #endif
-
-        if(mfsk_symbol == -1){
-          // Reached the end of the current character, increment the current-byte pointer.
-        	if (current_mfsk_byte++ == packet_length) {
-        		// End of the packet. Reset Counters and stop modulation.
-        		radio_rw_register(0x73, 0x03, 1); // Idle at Symbol 3
-        		current_mfsk_byte = 0;
-        		tx_on = 0;
-        		// Reset the TX Delay counter, which is decremented at the symbol rate.
-        		// Set next delay to TX
-        		Sync_tx_on_delay();
-        		tx_enable = 0;
-
-        		// If we're not in continuous mode, disable the transmitter now.
-              	#ifndef CONTINUOUS_MODE
-                  radio_disable_tx();
-                #endif
-
-
-        	} else {
-				// We've now advanced to the next byte, grab the first symbol from it.
-				#ifdef MFSK_4_ENABLED
-				  mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
-				#elif MFSK_16_ENABLED
-				  mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
-				#endif
-        	}
-        }
-        // Set the symbol!
-        if(mfsk_symbol != -1){
-          radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
-        }
-        
-
-      } else if (current_mode == FSK_2) {
-        // 2FSK Symbol Selection Logic
-        // Get Symbol to transmit.
-        mfsk_symbol = send_2fsk(tx_buffer[current_mfsk_byte]);
-
-        if(mfsk_symbol == -1){
-          // Reached the end of the current character, increment the current-byte pointer.
-          if (current_mfsk_byte++ == packet_length) {
-              // End of the packet. Reset Counters and stop modulation.
-              radio_rw_register(0x73, 0x00, 1); // Idle at Symbol 0.
-              current_mfsk_byte = 0;
-              tx_on = 0;
-              // Reset the TX Delay counter, which is decremented at the symbol rate.
-              // tx_on_delay = (TX_DELAY-3500) / (1000/BAUD_RATE);
-              Sync_tx_on_delay();
-              tx_enable = 0;
-              
-          } else {
-            // We've now advanced to the next byte, grab the first symbol from it.
-            mfsk_symbol = send_2fsk(tx_buffer[current_mfsk_byte]);
-          }
-        }
-        // Set the symbol!
-        if(mfsk_symbol != -1){
-          radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
-        }
-      } else{
-        // No more modes until now
-      }
-    }else{
-      // TX is off 
-      // If we are don't have RTTY enabled, and if we have CONTINUOUS_MODE set,
-      // transmit continuous MFSK symbols.
-      #ifndef RTTY_ENABLED
-        if(continuous_mode){
-          #ifdef MFSK_4_ENABLED
-            mfsk_symbol = (mfsk_symbol+1)%4;
-          #elif MFSK_16_ENABLED
-            mfsk_symbol = (mfsk_symbol+1)%16;
-          #endif
-          radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
-        }
-      #endif
-
-
-    }
-
-    // Delay between Transmissions Logic.
-    // tx_on_delay is set at the end of a RTTY/MFSK transmission above, and counts down
-    // at the interrupt rate. When it hits zero, we set tx_enable to 1, which allows
-    // the main loop to continue.
-    if (!tx_on && --tx_on_delay == 0) {
-      tx_enable = 1;
-      tx_on_delay--;
-    }
-
-    // Pip transmission logic.
-    // Only enabled if Continuous mode is disabled!
-    #ifdef TX_PIP
-    #ifndef CONTINUOUS_MODE
-      if ((tx_enable == 0) && (tx_on_delay%tx_pip)==TX_PIP_SYMBOLS){
-    	// if alternating frequency is activ, every PIP will switch between also each PIP Interval
-
-    	#ifdef TRANSMIT_FREQUENCY_2ND
-  		freuqency_change_PIP = !freuqency_change_PIP;
-		// setting TX frequency
-		if (freuqency_change_PIP) {
-			radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
-		} else {
-			radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+		  if (button_pressed == 0) {
+			adc_bottom = ADCVal[1] * 1.1; // dynamical reference for power down level
+		  }
 		}
-		#endif
 
-		radio_rw_register(0x73, 0x00, 1);
-        radio_enable_tx();
-      } else if ((tx_enable == 0) && (tx_on_delay%tx_pip)==0){
-    	  radio_disable_tx();
-        }
-    #endif  // not CONTINUOUS_MODE
-    #endif  // TX_PIP active
+		if (tx_on ) {
+		  // RTTY Symbol selection logic.
+		  if(current_mode == RTTY){
+			send_rtty_status = send_rtty((char *) tx_buffer);
 
-    // Green LED Blinking Logic
-    if (--cun == 0) {
-      if (pun) {
-        // Clear Green LED.
-        if (led_enabled) led_green_off();
-        pun = 0;
-      } else {
-        // If we have GPS lock, set LED
-        if (flaga & 0x80) {
-          if (led_enabled) led_green_on();
-        }
-        pun = 1;
-      }
-      // Wait 200 symbols.
-      cun = 100;
-    }
+			if (!disable_armed){
+			  if (send_rtty_status == rttyEnd) {
+				if (led_enabled) { led_red_on(); }
+				if (*(++tx_buffer) == 0) {
+				  tx_on = 0;
+				  // Reset the TX Delay counter, which is decremented at the symbol rate.
+				  // tx_on_delay = (TX_DELAY-5000) / (1000/BAUD_RATE);
+				  Sync_tx_on_delay();
+				  tx_enable = 0;
+
+				  // If we're not in continuous mode, disable the transmitter now.
+				  #ifndef CONTINUOUS_MODE
+					radio_disable_tx();
+				  #endif
+				}
+			  } else if (send_rtty_status == rttyOne) {
+				radio_rw_register(0x73, RTTY_DEVIATION, 1);
+				if (led_enabled) led_red_on();
+			  } else if (send_rtty_status == rttyZero) {
+				radio_rw_register(0x73, 0x00, 1);
+				if (led_enabled) led_red_off();
+			  }
+			}
+		  } else if (current_mode == MFSK) {
+			// 4FSK Symbol Selection Logic
+			// Get Symbol to transmit.
+			#ifdef MFSK_4_ENABLED
+			  mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
+			#elif MFSK_16_ENABLED
+			  mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
+			#endif
+
+			if(mfsk_symbol == -1){
+			  // Reached the end of the current character, increment the current-byte pointer.
+				if (current_mfsk_byte++ == packet_length) {
+					// End of the packet. Reset Counters and stop modulation.
+					radio_rw_register(0x73, 0x03, 1); // Idle at Symbol 3
+					current_mfsk_byte = 0;
+					tx_on = 0;
+					// Reset the TX Delay counter, which is decremented at the symbol rate.
+					// Set next delay to TX
+					Sync_tx_on_delay();
+					tx_enable = 0;
+
+					// If we're not in continuous mode, disable the transmitter now.
+					#ifndef CONTINUOUS_MODE
+					  radio_disable_tx();
+					#endif
+
+
+				} else {
+					// We've now advanced to the next byte, grab the first symbol from it.
+					#ifdef MFSK_4_ENABLED
+					  mfsk_symbol = send_4fsk(tx_buffer[current_mfsk_byte]);
+					#elif MFSK_16_ENABLED
+					  mfsk_symbol = send_16fsk(tx_buffer[current_mfsk_byte]);
+					#endif
+				}
+			}
+			// Set the symbol!
+			if(mfsk_symbol != -1){
+			  radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
+			}
+
+
+		  } else if (current_mode == FSK_2) {
+			// 2FSK Symbol Selection Logic
+			// Get Symbol to transmit.
+			mfsk_symbol = send_2fsk(tx_buffer[current_mfsk_byte]);
+
+			if(mfsk_symbol == -1){
+			  // Reached the end of the current character, increment the current-byte pointer.
+			  if (current_mfsk_byte++ == packet_length) {
+				  // End of the packet. Reset Counters and stop modulation.
+				  radio_rw_register(0x73, 0x00, 1); // Idle at Symbol 0.
+				  current_mfsk_byte = 0;
+				  tx_on = 0;
+				  // Reset the TX Delay counter, which is decremented at the symbol rate.
+				  // tx_on_delay = (TX_DELAY-3500) / (1000/BAUD_RATE);
+				  Sync_tx_on_delay();
+				  tx_enable = 0;
+
+			  } else {
+				// We've now advanced to the next byte, grab the first symbol from it.
+				mfsk_symbol = send_2fsk(tx_buffer[current_mfsk_byte]);
+			  }
+			}
+			// Set the symbol!
+			if(mfsk_symbol != -1){
+			  radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
+			}
+		  } else if (current_mode == APRS) {   // <----- APRS
+
+
+			  /*
+			  while (aprs_is_active()){
+			      aprs_timer_handler();
+			    }
+			  tx_on = 0;
+		      Sync_tx_on_delay();
+			  tx_enable = 0;
+			  */
+		  } else {
+			// No more modes until now
+		  }
+		} else {
+		  // TX is off
+		  // If we are don't have RTTY enabled, and if we have CONTINUOUS_MODE set,
+		  // transmit continuous MFSK symbols.
+		  #ifndef RTTY_ENABLED
+			if(continuous_mode){
+			  #ifdef MFSK_4_ENABLED
+				mfsk_symbol = (mfsk_symbol+1)%4;
+			  #elif MFSK_16_ENABLED
+				mfsk_symbol = (mfsk_symbol+1)%16;
+			  #endif
+			  radio_rw_register(0x73, (uint8_t)mfsk_symbol, 1);
+			}
+		  #endif
+
+
+		}
+
+		// Delay between Transmissions Logic.
+		// tx_on_delay is set at the end of a RTTY/MFSK transmission above, and counts down
+		// at the interrupt rate. When it hits zero, we set tx_enable to 1, which allows
+		// the main loop to continue.
+		if (!tx_on && --tx_on_delay == 0) {
+		  tx_enable = 1;
+		  tx_on_delay--;
+		}
+
+		// Pip transmission logic.
+		// Only enabled if Continuous mode is disabled!
+		#ifdef TX_PIP
+		#ifndef CONTINUOUS_MODE
+		  if ((tx_enable == 0) && (tx_on_delay%tx_pip)==TX_PIP_SYMBOLS){
+			// if alternating frequency is activ, every PIP will switch between also each PIP Interval
+
+			#ifdef TRANSMIT_FREQUENCY_2ND
+			freuqency_change_PIP = !freuqency_change_PIP;
+			// setting TX frequency
+			if (freuqency_change_PIP) {
+				radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
+			} else {
+				radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+			}
+			#endif
+
+			radio_rw_register(0x73, 0x00, 1);
+			radio_enable_tx();
+		  } else if ((tx_enable == 0) && (tx_on_delay%tx_pip)==0){
+			  radio_disable_tx();
+			}
+		#endif  // not CONTINUOUS_MODE
+		#endif  // TX_PIP active
+
+		// Green LED Blinking Logic
+		if (--cun == 0) {
+		  if (pun) {
+			// Clear Green LED.
+			if (led_enabled) led_green_off();
+			pun = 0;
+		  } else {
+			// If we have GPS lock, set LED
+			if (flaga & 0x80) {
+			  if (led_enabled) led_green_on();
+			}
+			pun = 1;
+		  }
+		  // Wait 200 symbols.
+		  cun = 100;
+		}
+	  }
   }
 }
 
@@ -525,9 +544,10 @@ int main(void) {
   // not continuously throughout transmissions. If it is enabled, and there is a significant temperature change,
   // the transmitter *will* drift off frequency.
   // The fix appears to be to briefly disable, then re-enable the transmitter, which forces a re-calibration.
-
+  aprs_init();
   radio_enable_tx();
 
+  uint8_t next_aprs_counter = APRS_RATIO;
   sync_txdelay = 0;
   while (1) {
     // Don't do anything until the previous transmission has finished.
@@ -547,18 +567,18 @@ int main(void) {
         } else if (current_mode == RTTY){
           // We've just transmitted a RTTY packet, now configure for 4FSK.
           current_mode = MFSK;
+
+
           #if defined(MFSK_4_ENABLED)
             radio_enable_tx();
 			#ifdef TRANSMIT_FREQUENCY_2ND
-
-			freuqency_change = !freuqency_change;
-			// setting TX frequency
-			if (freuqency_change) {
-				radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
-			} else {
-				radio_set_tx_frequency(TRANSMIT_FREQUENCY);
-			}
-
+				freuqency_change = !freuqency_change;
+				// setting TX frequency
+				if (freuqency_change) {
+					radio_set_tx_frequency(TRANSMIT_FREQUENCY_2ND);
+				} else {
+					radio_set_tx_frequency(TRANSMIT_FREQUENCY);
+				}
 			#endif
 
 			#ifdef HORUS_V1
@@ -569,8 +589,28 @@ int main(void) {
 			#endif
 
           #endif
+        } else if (current_mode == MFSK){
+            // We've just transmitted a MFSK packet, now configure for APRS
+            current_mode = APRS;
+
+			#ifdef APRS_1200_ENABLED
+            if (next_aprs_counter-- <= 1) {
+                radio_enable_tx();
+		        GPSEntry gpsData;
+		        ublox_get_last_data(&gpsData);
+		        USART_Cmd(USART1, DISABLE);
+		        int8_t temperature = radio_read_temperature();
+		        uint16_t voltage = (uint16_t) ADCVal[0] * 600 / 4096;
+		        aprs_send_position(gpsData, temperature, voltage);
+		        USART_Cmd(USART1, ENABLE);
+		        radio_disable_tx();
+		        _delay_ms(1000);
+		        next_aprs_counter = APRS_RATIO;
+            }
+		    #endif
+
         } else {
-          // We've finished the 4FSK transmission, grab new data.
+          // We've finished the transmission, grab new data.
           current_mode = STARTUP;
           radio_disable_tx();
 

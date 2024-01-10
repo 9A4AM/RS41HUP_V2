@@ -16,6 +16,7 @@
 //================================================
 #define TRANSMIT_FREQUENCY  434.7140f //Mhz middle frequency
 //#define TRANSMIT_FREQUENCY_2ND  437.6000f //Mhz middle frequency
+#define TRANSMIT_APRS_FREQUENCY  434.7140f //Mhz middle frequency
 //================================================
 
 #define BAUD_RATE  100 // RTTY & MFSK Baud rate.
@@ -23,14 +24,24 @@
                        // with the suggested MFSK baud rate being 100 baud.
 
 // Modulation Types - Comment out a line below to enable/disable a modulation.
-//#define RTTY_ENABLED 1
-#define MFSK_4_ENABLED 1
+//================================================
+//#define RTTY_ENABLED
+#define MFSK_4_ENABLED
+#define APRS_1200_ENABLED
+//================================================
+
 
 //*************RTTY SETTINGS******************
 #define CALLSIGN "URCALL" // put your RTTY callsign here, max. 15 characters
 #define RTTY_DEVIATION 0x3	// RTTY shift = RTTY_DEVIATION x 270Hz
 #define RTTY_7BIT   1 // if 0 --> 5 bits
 #define RTTY_USE_2_STOP_BITS   1
+
+//*************APRS SETTINGS******************
+#define APRS_CALLSIGN "DF7PN" // put your APRS callsign here, max. 15 characters
+#define APRS_SSID 7
+#define APRS_COMMENT " RS41 Balloon"
+#define APRS_RATIO 2   // Every TX loop counts one down then send a APRS packet if nbr 1 reached - so 2 means every second TX
 
 //************MFSK Binary Settings************
 // Binary Payload ID (0 though 255) - For your own flights, you will need to request a payload ID,
