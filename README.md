@@ -18,6 +18,10 @@ Released under GPL v2.
 	* if delay 30s and offset 10s: tx on 00:00:10 / 00:00:40 / 00:01:10 ...
 	* if delay 15s and offset 10s: tx on 00:00:10 / 00:00:25 / 00:00:40 ...
   * APRS_1200 Baud added.  Ratio can be defined how often to send a packet
+    * Meaning of packet codings:
+	* Sample: 11:35 DF7PN-7/WIDE1-1>APZQAP>UI,?,F0 (1198 baud): !4953.14N/00804.40EO/A=000846/P43S7T6V6 RS41 Balloon
+	* /A=000846 is altitude in feet. Thumb rule: divide by 3
+	* /P43S7T6V6  is P=PacketNbr, S=SatCount, T=internalTemperature, V=Volts (div by 100) here 6 = 0.06 Volt
 
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
