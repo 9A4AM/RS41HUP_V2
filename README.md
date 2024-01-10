@@ -13,6 +13,12 @@ Released under GPL v2.
   * GPS-TX Sync if Fix is available every minute
   * Second frequency if defined. changes every TX intervall between both
   * MORSECODE: Transmit additional data like Alt, QRA Locator, Sat-Count, Volt, CPU-Temp - or NO GPS if jamming
+  * GPS-TX Sync now with offset after the TX Intervall.  e.g...
+	* if delay 60s and offset 10s: tx on 00:00:10 / 00:01:10 / 00:02:10 ...
+	* if delay 30s and offset 10s: tx on 00:00:10 / 00:00:40 / 00:01:10 ...
+	* if delay 15s and offset 10s: tx on 00:00:10 / 00:00:25 / 00:00:40 ...
+  * APRS_1200 Baud added.  Ratio can be defined how often to send a packet
+
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
 * If power does not matter, than have a look on RS41ng.
@@ -41,8 +47,8 @@ Modifications by Mark Jessop <vk5qi@rfhead.net> include:
 
 
 ## Windows:
-(Note, is likely broken - currently targeting Linux / OSX builds)
-I used to edit and compile the CooCox CoIDE - this works fine and it also uploads to the STM32 Board with ST-Link dongle.
+Wolf: used to edit and compile the CooCox CoIDE - this works fine and it also uploads to the STM32 Board with ST-Link dongle.
+
 
 Use:
 https://www.softpedia.com/get/Programming/Coding-languages-Compilers/CooCox-CoIDE.shtml
@@ -63,6 +69,8 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
 #Changelog
+ * 10.01.2024 - APRS_1200 added again to the modes, Ratio can be defined, a different frequency can be given
+ * 04.01.2024 - Sync with GPS: added to configure an offset for less TX collisions on multi flights on same frequency
  * 31.12.2023 - Checked and extend MORSECODE data 
  * 26.12.2023 - Added choice for 2nd TX frequency: if activated, changes between each tx intervall.
  * 26.12.2023 - Added GPS-Sync: TX starts every full minute if gps-fix is availble
