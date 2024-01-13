@@ -20,7 +20,6 @@
 #include "radio.h"
 #include "ublox.h"
 #include "delay.h"
-//#include "aprs.h"
 #include "util.h"
 #include "mfsk.h"
 #include "horus_l2.h"
@@ -547,7 +546,9 @@ int main(void) {
   aprs_init();
   radio_enable_tx();
 
+#ifdef APRS_1200_ENABLED
   uint8_t next_aprs_counter = APRS_RATIO;
+#endif
   sync_txdelay = 0;
   while (1) {
     // Don't do anything until the previous transmission has finished.
