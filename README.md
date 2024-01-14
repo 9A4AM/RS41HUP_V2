@@ -22,6 +22,8 @@ Released under GPL v2.
 	* Sample: 11:35 DF7PN-7/WIDE1-1>APZQAP>UI,?,F0 (1198 baud): !4953.14N/00804.40EO/A=000846/P43S7T6V6 RS41 Balloon
 	* /A=000846 is altitude in feet. Thumb rule: divide by 3
 	* /P43S7T6V6  is P=PacketNbr, S=SatCount, T=internalTemperature, V=Volts (div by 100) here 6 = 0.06 Volt
+	* ==> do not forget to add the new files to your coIDE project file
+		* aprs.h; aprs.cpp; QAPRS*
 
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
@@ -44,15 +46,17 @@ Modifications by Mark Jessop <vk5qi@rfhead.net> include:
 ## Linux / OSX:  (Remark: this forked info, wont work in my workspace - i found no solution)
 * Grab the latest GNU ARM Embedded toolchain from here: https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads
 * Extract the tarball to somewhere useful. In my case I'm using ~/opt/
-* Within the RS41HUP directory:
-  * Edit CMakeLists.txt and set the correct path to the un-tar'd directory.
+* Within the RS41HUP_V2 directory:
+  * CMakeLists.txt is prepared for Ubuntu, maybe edit is nessesary
   * `cmake .`
   * `make`
-
+* Flashing: (premisse you intalled openocd before)
+  * connect the sonde to the ST-Link adapter and power it on
+  * in the RS41HUP_V2 dir start ./openocd_flash.sh. This unlocks the RS41 memory and push the RS41HUP.ELF file with a verify
 
 ## Windows:
 Wolf: used to edit and compile the CooCox CoIDE - this works fine and it also uploads to the STM32 Board with ST-Link dongle.
-
+Flashing:  right near the compile button in the toolbar there is the download button to the hardware. Try it. Tooltip is your friend
 
 Use:
 https://www.softpedia.com/get/Programming/Coding-languages-Compilers/CooCox-CoIDE.shtml
@@ -73,6 +77,7 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
 #Changelog
+ * 14.01.2024 - CMakeLists.txt: corrected the TOOLCHAIN_DIR line 12 to work under Ubuntu
  * 10.01.2024 - APRS_1200 added again to the modes, Ratio can be defined, a different frequency can be given
  * 04.01.2024 - Sync with GPS: added to configure an offset for less TX collisions on multi flights on same frequency
  * 31.12.2023 - Checked and extend MORSECODE data 
