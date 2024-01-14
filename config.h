@@ -27,7 +27,7 @@
 //================================================
 //#define RTTY_ENABLED
 #define MFSK_4_ENABLED
-#define APRS_1200_ENABLED
+//#define APRS_1200_ENABLED
 //================================================
 
 
@@ -38,7 +38,8 @@
 #define RTTY_USE_2_STOP_BITS   1
 
 //*************APRS SETTINGS******************
-#define APRS_CALLSIGN "DF7PN" // put your APRS callsign here, max. 15 characters
+// W A R N I N G:  fill callsign up to at least 6 characters with BLANK if to short.
+#define APRS_CALLSIGN "DF7PN " // put your APRS callsign here, min 6 and max. 15 characters
 #define APRS_SSID 7
 #define APRS_COMMENT " RS41 Balloon"
 #define APRS_RATIO 2   // Every TX loop counts one down then send a APRS packet if nbr 1 reached - so 2 means every second TX
@@ -122,7 +123,7 @@
 //Only works if SYNC_TX_WITH_GPS is activ
 //ATTENTION: do NOT set OFFSET HIGHER THEN TX_DELAY - This results in unexpected behavior
 //================================================
-#define TX_DELAY_OFFSET  20000
+#define TX_DELAY_OFFSET  5000
 //================================================
 
 // Try to sync the TX to start on full minute if GPSfix is available.
