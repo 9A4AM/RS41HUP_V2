@@ -38,8 +38,8 @@
 #define RTTY_USE_2_STOP_BITS   1
 
 //*************APRS SETTINGS******************
-// W A R N I N G:  fill callsign up to at least 6 characters with BLANK if to short.
-#define APRS_CALLSIGN "DF7PN " // put your APRS callsign here, min 6 and max. 15 characters
+//....................if call shorter then 6 chars, it will be filled up with a blank internally in QAPRS class init
+#define APRS_CALLSIGN "DF7PN" // put your APRS callsign here max. 15 characters
 #define APRS_SSID 7
 #define APRS_COMMENT " RS41 Balloon"
 #define APRS_RATIO 2   // Every TX loop counts one down then send a APRS packet if nbr 1 reached - so 2 means every second TX

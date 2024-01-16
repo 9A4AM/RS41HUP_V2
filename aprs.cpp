@@ -14,8 +14,15 @@
 QAPRSBase qaprs;
 
 void aprs_init(){
-  qaprs.init(0, 0, (char *) APRS_CALLSIGN, (const uint8_t) APRS_SSID, (char *) "APZQAP", '0', (char *) "WIDE1-1");
 
+	// fill up the callsign to at least 6 characters by blanks
+	char aprs_callsign[15] = {APRS_CALLSIGN};
+	uint8_t laenge = strlen(aprs_callsign);
+	while (laenge < 6) {
+		strcat (aprs_callsign," ");
+		laenge = strlen(aprs_callsign);
+	}
+	qaprs.init(0, 0, (char *) aprs_callsign, (const uint8_t) APRS_SSID, (char *) "APZQAP", '0', (char *) "WIDE1-1");
 }
 
 void aprs_timer_handler() {
