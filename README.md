@@ -27,8 +27,7 @@ Released under GPL v2.
 	* Extended accuracy of the coordinates with DAO 
 		* DAO adds after the APRS_COMMENT a sequence of  !W??!  where the ?? are some more decimals of the position
 		* see for more info: http://www.aprs.org/aprs12/datum.txt
-		* config.h : #define APRS_DAO 1     DAO is active
-					 #define APRS_DAO 0     no extension is added to comment - packets are 5 bytes shorter	
+		* config.h : #define APRS_DAO 1     DAO is active // #define APRS_DAO 0     no extension is added to comment - packets are 5 bytes shorter	
 
 
 
@@ -49,9 +48,10 @@ Modifications by Mark Jessop <vk5qi@rfhead.net> include:
 
 
 # Compilation
-## Linux / OSX:  (Remark: this forked info, wont work in my workspace - i found no solution)
-* Grab the latest GNU ARM Embedded toolchain from here: https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads
-* Extract the tarball to somewhere useful. In my case I'm using ~/opt/
+## Linux / OSX: 
+* Grab the GNU ARM Embedded toolchain from here: https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads
+* Extract the files as described on the download page
+* Use local GIT to clone the RS41HUP_V2 project
 * Within the RS41HUP_V2 directory:
   * CMakeLists.txt is prepared for Ubuntu, maybe edit is nessesary
   * `cmake .`
