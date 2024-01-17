@@ -2,11 +2,13 @@
 // Created by Admin on 2017-01-09.
 //
 
+#include "math.h"
 #include "aprs.h"
 #include "QAPRSBase.h"
 #include "stdio.h"
 #include "ublox.h"
 #include "config.h"
+//#include <cmath>
 
 #if !defined(__OPTIMIZE__)
 #error "APRS Works only when optimization enabled at level at least -O2"
@@ -56,16 +58,62 @@ void aprs_test(){
   qaprs.sendData(packet_buffer);
 }
 
+#ifdef APRS_DAO
+//--- only for DAO Extension nessesary
+//DAO?  see http://www.aprs.org/aprs12/datum.txt
+//Code from Hansi DL9RDZ
+
+static uint32_t truncc(double r)
+{
+   if (r<=0.0L) {
+	   return 0UL;
+   } else if (r>=2.E+9) {
+	   return 2000000000UL;
+   } else {
+	   return (uint32_t)r;
+   }
+   return 0;
+} /* end truncc() */
+
+static uint32_t dao91(double x)
+/* radix91(xx/1.1) of dddmm.mmxx */
+{
+   double a;
+   a = fabs(x);
+   return ((truncc((a-(double)(float)truncc(a))*6.E+5)%100UL)
+                *20UL+11UL)/22UL;
+} /* end dao91() */
+#endif
+
 void aprs_send_position(GPSEntry gpsData, int8_t temperature, uint16_t voltage) {
-  char packet_buffer[128];
+  char packet_buffer[228];
+  char extension_packet_buffer[128];
   int8_t la_degrees, lo_degrees;
   uint8_t la_minutes, la_h_minutes, lo_minutes, lo_h_minutes;
+  // uint8_t j;
 
   calcDMH(gpsData.lat_raw/10, &la_degrees, &la_minutes, &la_h_minutes);
   calcDMH(gpsData.lon_raw/10, &lo_degrees, &lo_minutes, &lo_h_minutes);
 
   static uint16_t aprs_packet_counter = 0;
   aprs_packet_counter ++;
+
+
+#ifdef APRS_DAO
+  if (APRS_DAO == 1) {
+	  //________________________________________________
+	  // DAO Extention for better positioning
+	  float  lat = gpsData.lat_raw / 10000000.0f;
+	  float  lon = gpsData.lon_raw / 10000000.0f;
+	  //________________________________________________
+	  uint8_t j = sprintf(extension_packet_buffer," %s",APRS_COMMENT);
+	  sprintf(extension_packet_buffer + j, " !w%c%c!", (char)(33+dao91(lat)), (char)(33+dao91(lon)));
+  } else {
+	sprintf(extension_packet_buffer," %s",APRS_COMMENT);
+  }
+#else
+  sprintf(extension_packet_buffer," %s",APRS_COMMENT);
+#endif
 
   sprintf(packet_buffer,
           ("!%02d%02d.%02u%c/%03d%02u.%02u%cO/A=%06ld/P%dS%dT%dV%d%s"),
@@ -78,7 +126,7 @@ void aprs_send_position(GPSEntry gpsData, int8_t temperature, uint16_t voltage) 
           gpsData.sats_raw,
           temperature,
           voltage,
-          APRS_COMMENT
+          extension_packet_buffer
   );
   qaprs.sendData(packet_buffer);
 }

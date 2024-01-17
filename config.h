@@ -43,6 +43,8 @@
 #define APRS_SSID 7
 #define APRS_COMMENT " RS41 Balloon"
 #define APRS_RATIO 2   // Every TX loop counts one down then send a APRS packet if nbr 1 reached - so 2 means every second TX
+#define APRS_DAO 1     // if DAO 1 then a better position resolution will be used (1 mtr), if set to "0" - only 13 mtr
+						// DAO is placed in the transmitted packet behind the COMMENT as e.g.  RS41 Balloon  !wbZ!
 
 //************MFSK Binary Settings************
 // Binary Payload ID (0 though 255) - For your own flights, you will need to request a payload ID,

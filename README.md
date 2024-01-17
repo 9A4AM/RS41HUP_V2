@@ -24,6 +24,12 @@ Released under GPL v2.
 	* /P43S7T6V6  is P=PacketNbr, S=SatCount, T=internalTemperature, V=Volts (div by 100) here 6 = 0.06 Volt
 	* ==> do not forget to add the new files to your coIDE project file
 		* aprs.h; aprs.cpp; QAPRS*
+	* Extended accuracy of the coordinates with DAO 
+		* DAO adds after the APRS_COMMENT a sequence of  !W??!  where the ?? are some more decimals of the position
+		* see for more info: http://www.aprs.org/aprs12/datum.txt
+		* config.h : #define APRS_DAO 1     DAO is active
+					 #define APRS_DAO 0     no extension is added to comment - packets are 5 bytes shorter	
+
 
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
