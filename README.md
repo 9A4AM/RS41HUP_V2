@@ -83,6 +83,7 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
 #Changelog
+ * 17.01.2024 - APRS.cpp - DAO extension added for more accuracy of position reports
  * 14.01.2024 - CMakeLists.txt: corrected the TOOLCHAIN_DIR line 12 to work under Ubuntu
  * 10.01.2024 - APRS_1200 added again to the modes, Ratio can be defined, a different frequency can be given
  * 04.01.2024 - Sync with GPS: added to configure an offset for less TX collisions on multi flights on same frequency
