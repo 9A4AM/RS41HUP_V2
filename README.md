@@ -82,6 +82,9 @@ Refer to [this file](./docs/programming_header.md) for programming header pinout
 # Configuration
 Configuration settings are located in [config.h](./config.h). Modify as appropriate before compiling/programming.
 
+# Community
+Telegram Chat:  feel free to join us at https://t.me/horus_flights
+
 #Changelog
  * 17.01.2024 - APRS.cpp - DAO extension added for more accuracy of position reports
  * 14.01.2024 - CMakeLists.txt: corrected the TOOLCHAIN_DIR line 12 to work under Ubuntu
