@@ -28,7 +28,11 @@ Released under GPL v2.
 		* DAO adds after the APRS_COMMENT a sequence of  !W??!  where the ?? are some more decimals of the position
 		* see for more info: http://www.aprs.org/aprs12/datum.txt
 		* config.h : #define APRS_DAO 1     DAO is active // #define APRS_DAO 0     no extension is added to comment - packets are 5 bytes shorter	
-
+  * Custom_field_list:  provide your own Data in Horus-V2 spare bytes
+	* The V2 Protocol provides some bytes for own use. There is an default list if you do nothing.
+	* Normally the webbrowser shows in left panel: Temerature, External - Relative Humidity, External and Pressure, External
+	* Some of us wanted to provide instead a constant : Flight_number and SondeType. 
+	* See config.h file for more infos at the defines USERFLAG_A and _B how to use them.
 
 
 * This RS41HUB is recomended for floating flights with battery. It needs less mA then the RS41ng Version. 
@@ -86,6 +90,7 @@ Configuration settings are located in [config.h](./config.h). Modify as appropri
 Telegram Chat:  feel free to join us at https://t.me/horus_flights
 
 #Changelog
+ * 31.01.2024 - CONFIG.H and MAIN.C - use your own Custom_field_list
  * 17.01.2024 - APRS.cpp - DAO extension added for more accuracy of position reports
  * 14.01.2024 - CMakeLists.txt: corrected the TOOLCHAIN_DIR line 12 to work under Ubuntu
  * 10.01.2024 - APRS_1200 added again to the modes, Ratio can be defined, a different frequency can be given

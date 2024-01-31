@@ -19,7 +19,7 @@
 #define TRANSMIT_APRS_FREQUENCY  434.7140f //Mhz middle frequency
 //================================================
 
-#define BAUD_RATE  100 // RTTY & MFSK Baud rate.
+#define BAUD_RATE  100 // RTTY & MFSK Baud rate.  PLEASE DONT CHANGE
                        // NOTE: Currently supported MFSK baud rates with horus-gui are 50 and 100 baud,
                        // with the suggested MFSK baud rate being 100 baud.
 
@@ -68,6 +68,34 @@
 
 #if defined(HORUS_V1) && defined(HORUS_V2)
 #error "Please select only one HORUS-Mode."
+//- ONLY ON V2: - your own flight number and sonde type
+// WHAT TO DO BEFORE USE?
+// (1) request Mark to add to custom_field_list.json block same as DF7PN for your BINARY_PAYLOAD_ID ------------------
+//     see https://github.com/projecthorus/horusdemodlib/blob/master/custom_field_list.json
+//     Example: https://github.com/projecthorus/horusdemodlib/issues/208
+// (2) If issue closed - every RX have to restart his software - so start your own first
+// (3) now enable the fields USERFLAG_A and USERFLAG_B - fill them with your constant numbers
+// (4) program a rs41 with this and wait for popup on the website  amateur.sondehub.org
+// (5) click your sonde and look on the expanded tabsheet left - behind SPEED there are the new Fields FLIGHT NUMBER and SONDE TYPE
+
+// USERFLAG_A : your personal flight number - count up one on each flight with same BINARY_PAYLOAD_ID - you have your own flight log!
+//================================================
+//#define USERFLAG_A 1   // FlightNumber  0..65535 (0xFFFF)
+//================================================
+// USERFLAG_B : declare a number out of the list what kind of sonde type your payload is
+//================================================
+//#define USERFLAG_B 0   // SondeType - see List below or at README in Github
+//================================================
+//.............SondeType..........................
+/* 0 = undefined payload
+ * 1 = RS41 default
+ * 2 = RS41 naked
+ * 3 = RS41 solar
+ * 4 = RS41 solar+Bat mixed
+ * 5 = Arduino - RFM
+ * 6 = more??
+ */
+//================================================
 #endif
 
 

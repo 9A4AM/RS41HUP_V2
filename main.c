@@ -136,11 +136,19 @@ struct TBinaryPacketV2
 	int8_t    Temp; // Si4032 temperature, as a signed value (-128 to +128, though sensor limited to -64 to +64 deg C)
 	uint8_t   BattVoltage; // 0 = 0v, 255 = 5.0V, linear steps in-between.
 	//... extra payload infos 9 bytes
+#ifdef USERFLAG_A
+	int16_t   FlightNumber;     // Using this, request to Mark add custom_field_list.json block same as DF7PN
+	int16_t   SondeType;        // Using this, request to Mark add custom_field_list.json block same as DF7PN
+	uint8_t   dummy1;       // not used
+	uint16_t  dummy2;       // not used
+	uint16_t  unused;       // not used
+#else
 	int16_t   dummy1;       // Interpreted as Ascent rate divided by 100 for the Payload ID: 4FSKTEST-V2
 	int16_t   dummy2;       // External temperature divided by 10 for the Payload ID: 4FSKTEST-V2
 	uint8_t   dummy3;       // External humidity for the Payload ID: 4FSKTEST-V2
 	uint16_t  dummy4;       // External pressure divided by 10 for the Payload ID:  4FSKTEST-V2
 	uint16_t  unused;       // 2 bytes which are not interpreted
+#endif
 	uint16_t  Checksum; // CRC16-CCITT Checksum.
 };
 #pragma pack(pop)
@@ -951,12 +959,19 @@ void send_mfsk_packetV2(){
   BinaryPacket2.BattVoltage = volts_scaled;
   BinaryPacket2.Sats = gpsData.sats_raw;
   BinaryPacket2.Temp = si4032_temperature;
+#ifndef USERFLAG_A
   BinaryPacket2.dummy1 = 0;
   BinaryPacket2.dummy2 = 0;
   BinaryPacket2.dummy3 = 0;
   BinaryPacket2.dummy4 = NOGPS_counter*10;
   BinaryPacket2.unused = 0;
-
+#else
+  BinaryPacket2.FlightNumber = USERFLAG_A;
+  BinaryPacket2.SondeType = USERFLAG_B;
+  BinaryPacket2.dummy1 = 0;
+  BinaryPacket2.dummy2 = 0;
+  BinaryPacket2.unused = 0;
+#endif
   // Add onto the sats_raw value to indicate if the GPS is in regular tracking (+100)
   // or power optimized tracker (+200) modes.
   if(gpsData.psmState == 1){
