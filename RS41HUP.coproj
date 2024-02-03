@@ -138,5 +138,10 @@
     <File name="main.c" path="main.c" type="1"/>
     <File name="horus_l2.c" path="horus_l2.c" type="1"/>
     <File name="util.h" path="util.h" type="1"/>
+    <File name="aprs.h" path="aprs.h" type="1"/>
+    <File name="aprs.cpp" path="aprs.cpp" type="1"/>
+    <File name="QAPRSBase.cpp" path="QAPRSBase.cpp" type="1"/>
+    <File name="QAPRSBase.h" path="QAPRSBase.h" type="1"/>
+    <File name="QAPRSCommon.h" path="QAPRSCommon.h" type="1"/>
   </Files>
 </Project>
